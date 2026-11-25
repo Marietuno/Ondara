@@ -53,7 +53,8 @@ object SentryManager {
         if (Sentry.isEnabled()) return
 
         SentryAndroid.init(application) { options ->
-            options.dsn = "https://fe4474514a54a507252b26c60e229016@o4511744603193344.ingest.de.sentry.io/4511744608436304"
+            // Ondara must not send crash reports to the upstream Metrolist project; an empty DSN disables Sentry.
+            options.dsn = ""
             options.release = androidSentryRelease(BuildConfig.APP_VERSION)
             BuildConfig.SOURCE_REVISION.takeIf(String::isNotBlank)?.let { options.setTag("source_revision", it) }
             options.sampleRate = 1.0

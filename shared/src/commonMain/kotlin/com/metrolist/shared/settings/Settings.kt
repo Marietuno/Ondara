@@ -607,7 +607,10 @@ class Settings(
     var showCachedPlaylist by preference(true)
 
     var songCacheEnabled by preference(false)
-    var maxSongCacheSize by preference(1024)
+    var maxSongCacheSize by preference(4096)
+
+    // Upcoming queue songs stored in full while the current one plays, for playback without coverage.
+    var upcomingSongPrecacheCount by preference(2)
     var maxImageCacheSize by preference(512)
     var audioCacheLocation by preference("INTERNAL")
     var downloadLocation by preference("INTERNAL")

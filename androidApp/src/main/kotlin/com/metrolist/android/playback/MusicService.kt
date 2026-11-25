@@ -3049,6 +3049,7 @@ class MusicService :
                 Settings.shared.musicVideoQuality,
                 hints.maxVideoHeight,
             )
+            val resolveStartMs = SystemClock.elapsedRealtime()
             try {
                 val resource =
                     streamResolver.resolve(
@@ -3057,6 +3058,13 @@ class MusicService :
                         playbackAudioQuality(),
                         sourceSong = song,
                     )
+                Timber.tag(MUSIC_VIDEO_TAG).i(
+                    "resource resolve timing videoId=%s elapsedMs=%d client=%s sabr=%s",
+                    song.id,
+                    SystemClock.elapsedRealtime() - resolveStartMs,
+                    resource.clientName,
+                    resource.isSabr,
+                )
                 Timber.tag(MUSIC_VIDEO_TAG).d(
                     "resource resolve success videoId=%s wantVideo=%s client=%s profile=%s hasVideo=%s directVideo=%s sabrVideo=%s audioItag=%s videoItag=%s videoMime=%s videoCodec=%s videoSize=%sx%s availableHeights=%s",
                     song.id,

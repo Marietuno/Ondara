@@ -17,6 +17,13 @@
     <shortcut
         android:enabled="true"
         android:icon="@drawable/shortcut_library"
+        android:shortcutId="radio"
+        android:shortcutShortLabel="@string/radio_online">
+        <intent android:action="com.metrolist.music.action.RADIO" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_library"
         android:shortcutId="crash_logs"
         android:shortcutShortLabel="@string/crash_logs">
         <intent android:action="com.metrolist.music.action.CRASH_LOGS" />

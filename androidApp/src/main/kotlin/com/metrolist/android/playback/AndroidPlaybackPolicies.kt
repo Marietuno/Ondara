@@ -170,6 +170,31 @@ internal fun automaticCacheTracks(
     isPlaying: Boolean,
 ): List<SongItem> = listOfNotNull(song).takeIf { song?.id == resource?.videoId && isPlaying }.orEmpty()
 
+// Next songs in play order (wrapping with repeat-all) whose audio is stored in full ahead of time.
+internal fun upcomingCacheTracks(
+    queue: List<SongItem>,
+    currentIndex: Int,
+    repeatMode: Int,
+    count: Int,
+    isPlaying: Boolean,
+): List<SongItem> {
+    if (!isPlaying || count <= 0 || currentIndex !in queue.indices || repeatMode == Player.REPEAT_MODE_ONE) return emptyList()
+    val indices =
+        if (repeatMode == Player.REPEAT_MODE_ALL) {
+            (1 until queue.size).map { (currentIndex + it) % queue.size }
+        } else {
+            (currentIndex + 1 until queue.size).toList()
+        }
+    return indices
+        .asSequence()
+        .map(queue::get)
+        .filter { !it.isLocal && !it.isUploaded && !it.isPodcast && !it.id.startsWith("local_") }
+        .distinctBy { it.id }
+        .filter { it.id != queue[currentIndex].id }
+        .take(count)
+        .toList()
+}
+
 internal data class AutoLoadMoreTrigger(
     val sessionId: Long,
     val currentIndex: Int,

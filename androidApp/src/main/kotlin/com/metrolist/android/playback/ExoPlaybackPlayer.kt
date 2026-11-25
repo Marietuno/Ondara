@@ -417,7 +417,8 @@ class ExoPlaybackPlayer(
     private val a2dpMonitor = BluetoothA2dpMonitor(this.context) { maybeRecoverAudioOutput(a2dpStateChanged = true) }
 
     private fun createPlayer(
-        bufferForPlaybackMs: Int = 2_000,
+        // Start as soon as a short slice is buffered; rebuffering still waits for the longer threshold.
+        bufferForPlaybackMs: Int = 750,
         role: AndroidPlaybackPlayerRole = AndroidPlaybackPlayerRole.PRIMARY,
         audioSessionId: Int = sharedAudioSessionId,
     ): ExoPlayer {

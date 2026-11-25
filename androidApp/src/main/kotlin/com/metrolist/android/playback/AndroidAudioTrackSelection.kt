@@ -12,7 +12,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeoutOrNull
 
-internal const val ANDROID_MUSIC_TRACK_LOOKUP_TIMEOUT_MS = 10_000L
+// A slow album-track lookup falls back to the video's own audio instead of delaying playback.
+internal const val ANDROID_MUSIC_TRACK_LOOKUP_TIMEOUT_MS = 3_000L
 
 internal data class AndroidAudioTrackSelection(
     val song: SongItem,

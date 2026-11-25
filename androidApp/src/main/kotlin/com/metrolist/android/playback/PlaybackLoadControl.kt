@@ -14,10 +14,16 @@ internal fun playbackTargetBufferBytes(hasVideo: Boolean): Int =
     if (hasVideo) {
         DefaultLoadControl.DEFAULT_VIDEO_BUFFER_SIZE_FOR_LOCAL_PLAYBACK + DefaultLoadControl.DEFAULT_AUDIO_BUFFER_SIZE
     } else {
-        2 * 1024 * 1024
+        AUDIO_BUFFER_BYTES
     }
 
-internal fun createPlaybackLoadControl(bufferForPlaybackMs: Int = 2_000): DefaultLoadControl = PlaybackLoadControl(bufferForPlaybackMs)
+// Audio streams load in long bursts so a coverage gap of several minutes does not stall playback,
+// and the modem can idle between bursts.
+private const val AUDIO_BUFFER_BYTES = 16 * 1024 * 1024
+private const val AUDIO_MAX_BUFFER_US = 600_000_000L
+private const val AUDIO_REFILL_BELOW_US = 180_000_000L
+
+internal fun createPlaybackLoadControl(bufferForPlaybackMs: Int = 750): DefaultLoadControl = PlaybackLoadControl(bufferForPlaybackMs)
 
 private class PlaybackLoadControl(
     bufferForPlaybackMs: Int,
@@ -72,11 +78,11 @@ private class PlaybackLoadControl(
         val byteBudgetReached = getAllocator(parameters.playerId).totalBytesAllocated >= playbackTargetBufferBytes(false)
         val refillDurationUs =
             Util
-                .getMediaDurationForPlayoutDuration(20_000_000L, parameters.playbackSpeed.coerceAtLeast(1f))
-                .coerceAtMost(90_000_000L)
+                .getMediaDurationForPlayoutDuration(AUDIO_REFILL_BELOW_US, parameters.playbackSpeed.coerceAtLeast(1f))
+                .coerceAtMost(AUDIO_MAX_BUFFER_US)
         loadingAudioBurst =
             when {
-                byteBudgetReached || parameters.bufferedDurationUs >= 90_000_000L -> false
+                byteBudgetReached || parameters.bufferedDurationUs >= AUDIO_MAX_BUFFER_US -> false
                 parameters.bufferedDurationUs < refillDurationUs -> true
                 else -> loadingAudioBurst
             }

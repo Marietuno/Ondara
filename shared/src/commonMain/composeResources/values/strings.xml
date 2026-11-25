@@ -8,7 +8,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Bottom navigation -->
     <!-- Translators: Label for app name in the multiple app screens. -->
-    <string name="app_name" translatable="false">Metrolist</string>
+    <string name="app_name" translatable="false">Ondara</string>
     <string name="account_menu_license" translatable="false">GPL-3.0 MetrolistGroup</string>
     <!-- Translators: Apple mobile platform name displayed in application information. -->
     <!-- Translators: Navigation label for home in the multiple app screens. -->
@@ -5691,4 +5691,38 @@
     <string name="wrapped_home_title">Your %1$s Wrapped is here</string>
     <string name="wrapped_home_body">See your year in music and share it.</string>
     <string name="wrapped_home_card_dismissed">You can find your %1$s Wrapped in Statistics until December 31.</string>
+    <string name="radio_online">Online radio</string>
+    <string name="radio_search_hint">Search stations</string>
+    <string name="radio_favorites">Favorites</string>
+    <string name="radio_explore">Explore</string>
+    <string name="radio_all_countries">All countries</string>
+    <string name="radio_country">Country</string>
+    <string name="radio_battery_saver">Battery saver</string>
+    <string name="radio_battery_saver_desc">Prefer low-bitrate AAC streams</string>
+    <string name="radio_no_stations">No stations found</string>
+    <string name="radio_no_favorites">Star a station to keep it here</string>
+    <string name="radio_load_more">Load more</string>
+    <string name="radio_load_error">Could not load stations. Check your connection.</string>
+    <string name="radio_retry">Retry</string>
+    <string name="radio_add_favorite">Add to favorites</string>
+    <string name="radio_remove_favorite">Remove from favorites</string>
+    <string name="radio_play">Play</string>
+    <string name="radio_stop">Stop</string>
+    <string name="radio_connecting">Connecting…</string>
+    <string name="radio_open">Open online radio</string>
+    <string name="radio_car_tuner">Car radio</string>
+    <string name="radio_car_tuner_access">To control your car's FM/AM radio, allow notification access for this app.</string>
+    <string name="radio_car_tuner_grant">Allow access</string>
+    <string name="radio_car_tuner_none">No FM/AM radio app was found on this device. This works on Android car head units.</string>
+    <string name="radio_car_tuner_open">Open car radio</string>
+    <string name="radio_car_tuner_waiting">Open the car radio once so it can be controlled from here.</string>
+    <string name="radio_seek_down">Previous station</string>
+    <string name="radio_seek_up">Next station</string>
+    <string name="radio_frequency">Frequency (e.g. 98.5)</string>
+    <string name="radio_tune">Tune</string>
+    <string name="radio_tune_hint">Direct tuning works if the car radio app supports it; seek always works.</string>
+    <string name="import_spotify_shortcut">Import from Spotify</string>
+    <string name="radio_live">Live</string>
+    <string name="radio_go_live">Go live</string>
+    <string name="radio_behind_live">%1$s behind live</string>
 </resources>

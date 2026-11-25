@@ -464,6 +464,41 @@
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false" />
 
+        <activity
+            android:name="com.metrolist.android.radio.RadioActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/radio_online"
+            android:launchMode="singleTop"
+            android:taskAffinity="${applicationId}.radio"
+            android:theme="@style/Theme.Metrolist"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="com.metrolist.music.action.RADIO" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name="com.metrolist.android.radio.TunerListenerService"
+            android:exported="false"
+            android:label="@string/radio_car_tuner"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="com.metrolist.android.radio.RadioService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+
         <service
             android:name="com.metrolist.android.playback.MusicService"
             android:enabled="true"

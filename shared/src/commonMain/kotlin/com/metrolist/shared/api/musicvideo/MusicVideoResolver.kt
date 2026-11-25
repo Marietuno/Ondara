@@ -624,7 +624,8 @@ class MusicVideoResolver(
         private const val CACHE_FOUND_TTL_MS = 30L * 24 * 60 * 60 * 1000
         private const val CACHE_NEGATIVE_TTL_MS = 7L * 24 * 60 * 60 * 1000
         private const val CACHE_MAX_ENTRIES = 200
-        private const val TRACK_CACHE_TTL_MS = 5L * 60 * 1000
+        // Album-track counterparts rarely change; keeping them longer makes replays and queued videos start sooner.
+        private const val TRACK_CACHE_TTL_MS = 3L * 60 * 60 * 1000
         private const val CACHE_SCHEMA_KEY = "_schema"
         private const val CACHE_SCHEMA_VERSION = "3"
     }

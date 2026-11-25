@@ -377,6 +377,55 @@ class AudioCacheManager(
         }
     }
 
+    // Stores an upcoming queue song in full before it plays, so playback continues through coverage gaps.
+    suspend fun prefetchUpcomingSong(
+        song: SongItem,
+        resource: PlaybackResource,
+    ) = withContext(Dispatchers.IO) {
+        if (Settings.shared.maxSongCacheSize == 0) return@withContext
+        val cacheResource = cacheableAudioResource(resource) ?: return@withContext
+        val mvId = cacheResource.musicVideoId
+        val targetSong = if (mvId != null && mvId != song.id) song.copy(id = mvId) else song
+        if (manuallyRemovedCacheSongs.containsKey(targetSong.id)) return@withContext
+        val existing = database.dao().cachedAudio(targetSong.id)
+        if (existing != null && audioAvailable(existing.filePath)) return@withContext
+        synchronized(activeDownloads) {
+            if (!activeDownloads.add(targetSong.id)) return@withContext
+        }
+        val generation = cacheGeneration.get()
+        try {
+            val configured = Settings.shared.maxSongCacheSize.toLong() * 1024L * 1024L
+            val budget = if (configured < 0L) MAX_AUDIO_BYTES else minOf(MAX_AUDIO_BYTES, configured)
+            cacheResource.contentLengthBytes?.let { incoming ->
+                if (incoming > budget) return@withContext
+                evictIfNeeded(incoming, if (cacheResource.isDirectFile) incoming else 0L)
+            }
+            if (cacheResource.isDirectFile) {
+                PlaybackPreCache.prefetch(cacheResource, playbackCaptureDirectory(context), budget)
+                if (!DirectPlaybackCache.complete(cacheResource)) return@withContext
+            }
+            currentCoroutineContext().ensureActive()
+            storeAudioFile(
+                targetSong,
+                cacheResource,
+                KIND_CACHE,
+                maxBytes = budget,
+                allowSabrDownload = true,
+                cacheMayPublish = {
+                    cacheGeneration.get() == generation && !manuallyRemovedCacheSongs.containsKey(targetSong.id)
+                },
+            )
+            evictIfNeeded()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Timber.tag(TAG).w(e, "upcoming song pre-cache failed songId=%s", targetSong.id)
+        } finally {
+            synchronized(activeDownloads) {
+                activeDownloads.remove(targetSong.id)
+            }
+        }
+    }
+
     suspend fun cacheSong(
         song: SongItem,
         resource: PlaybackResource? = null,

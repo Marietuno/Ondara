@@ -178,6 +178,8 @@ import com.metrolist.android.playback.SongDownloadManager
 import com.metrolist.android.playback.isRunnable
 import com.metrolist.android.playback.resolveIncomingPlaybackSong
 import com.metrolist.android.playback.voiceSearchRequest
+import com.metrolist.android.radio.RadioActivity
+import com.metrolist.android.spotifyimport.SpotifyImportShortcut
 import com.metrolist.android.ui.component.BottomSheetMenu
 import com.metrolist.android.ui.component.FloatingTopAppBar
 import com.metrolist.android.ui.component.LocalMenuState
@@ -276,6 +278,8 @@ import com.metrolist.shared.generated.resources.listen_together_guest_choice_tit
 import com.metrolist.shared.generated.resources.listen_together_guest_queue
 import com.metrolist.shared.generated.resources.listen_together_guest_solo
 import com.metrolist.shared.generated.resources.menu_history
+import com.metrolist.shared.generated.resources.radio_open
+import com.metrolist.shared.generated.resources.import_spotify_shortcut
 import com.metrolist.shared.generated.resources.menu_stop
 import com.metrolist.shared.generated.resources.mysterious_fourth_tab
 import com.metrolist.shared.generated.resources.mysterious_fourth_tab_description
@@ -1550,6 +1554,24 @@ fun MetrolistApp(
                                                         emptyList()
                                                     }
                                                 val topBarActions: @Composable RowScope.() -> Unit = {
+                                                    if (navigationState.topLevelRoute == Screen.Home) {
+                                                        TopBarIconButton(
+                                                            floating = useFloatingTopBar,
+                                                            onClick = { context.startActivity(Intent(context, RadioActivity::class.java)) },
+                                                            modifier =
+                                                                Modifier.tvFocusHighlight(
+                                                                    CircleShape,
+                                                                    scale = 1.08f,
+                                                                    bringIntoView = false,
+                                                                ),
+                                                        ) {
+                                                            Icon(
+                                                                MetrolistIcons.Outlined.Radio,
+                                                                contentDescription = stringResource(Res.string.radio_open),
+                                                                modifier = Modifier.size(24.dp),
+                                                            )
+                                                        }
+                                                    }
                                                     if (navigationState.topLevelRoute == Screen.Home && Screen.History !in railScreens) {
                                                         TopBarIconButton(
                                                             floating = useFloatingTopBar,
@@ -1564,6 +1586,21 @@ fun MetrolistApp(
                                                             Icon(
                                                                 MetrolistIcons.Outlined.MusicHistory,
                                                                 contentDescription = stringResource(Res.string.menu_history),
+                                                                modifier = Modifier.size(24.dp),
+                                                            )
+                                                        }
+                                                    }
+                                                    if (navigationState.topLevelRoute == Screen.Library) {
+                                                        TopBarIconButton(
+                                                            floating = useFloatingTopBar,
+                                                            onClick = {
+                                                                SpotifyImportShortcut.pending = true
+                                                                navigator.navigate(Screen.SettingsPage(SettingsPageId.BACKUP_RESTORE))
+                                                            },
+                                                        ) {
+                                                            Icon(
+                                                                MetrolistIcons.Outlined.LibraryAdd,
+                                                                contentDescription = stringResource(Res.string.import_spotify_shortcut),
                                                                 modifier = Modifier.size(24.dp),
                                                             )
                                                         }

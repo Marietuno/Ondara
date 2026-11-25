@@ -521,7 +521,16 @@ internal class AndroidQueueTransitions(
         pendingAutomaticCacheSongs.clear()
         automaticCacheTracks(currentSong, currentResource, player.isPlaying.value)
             .forEach { pendingAutomaticCacheSongs[it.id] = it }
-        val targets = (deferredSabrCacheSongs.values + pendingAutomaticCacheSongs.values).distinctBy { it.id }
+        val upcoming =
+            upcomingCacheTracks(
+                queue = player.songQueue.value,
+                currentIndex = player.currentMediaItemIndex.value,
+                repeatMode = queue.repeatMode.value,
+                count = Settings.shared.upcomingSongPrecacheCount,
+                isPlaying = player.isPlaying.value,
+            )
+        val upcomingIds = upcoming.mapTo(hashSetOf()) { it.id }
+        val targets = (deferredSabrCacheSongs.values + pendingAutomaticCacheSongs.values + upcoming).distinctBy { it.id }
         if (targets.isEmpty()) return
         queuePreCacheScheduler.schedule {
             cacheQueueSequentially(
@@ -538,7 +547,9 @@ internal class AndroidQueueTransitions(
                     }
                 },
                 cache = { song ->
-                    if (!song.isLocal) {
+                    if (song.id in upcomingIds && song.id !in pendingAutomaticCacheSongs && song.id !in deferredSabrCacheSongs) {
+                        prefetchUpcomingSong(song)
+                    } else if (!song.isLocal) {
                         cacheWhenSabrReleased(
                             song = song,
                             deferred = deferredSabrCacheSongs,
@@ -585,6 +596,43 @@ internal class AndroidQueueTransitions(
                     Timber.tag(TAG).w(error, "Failed to cache song in queue: %s", song.id)
                 },
             )
+        }
+    }
+
+    private suspend fun prefetchUpcomingSong(queued: SongItem) {
+        // A music video plays as its album track in song mode, so store the audio that will actually play.
+        val selection =
+            resolveAndroidAudioTrackSelection(
+                sourceSong = queued,
+                positionMs = 0L,
+                wantVideo = Settings.shared.videoViewerVisible,
+                allowCounterpartLookup =
+                    canSwapToAudioCounterpart(
+                        videoPlaybackEnabled = Settings.shared.musicVideoPlaybackEnabled,
+                        networkConnected = PlaybackNetworkStateStore.current.connected,
+                    ),
+                isCounterpartAllowed = { !BlockedContent.isBlocked(it) },
+                resolveMusicTrack = musicVideoResolver::resolveMusicTrack,
+            )
+        val song = selection.song
+        if (song.id != queued.id && audioCacheManager.isCached(song.id)) {
+            cacheRetryPolicy.succeeded(queued.id)
+            return
+        }
+        // The preloaded next track owns its SABR stream; the regular cache path stores it once released.
+        if (song.id in activeSabrCacheIds() || queued.id in activeSabrCacheIds()) return
+        val resource =
+            nextTrackPreloadResource?.takeIf { it.videoId == song.id && !it.isSabr }
+                ?: fetchPlaybackResource(song, false)
+        if (resource == null) {
+            cacheRetryPolicy.failed(queued.id)
+            return
+        }
+        audioCacheManager.prefetchUpcomingSong(song, resource)
+        if (audioCacheManager.isCached(resource.musicVideoId ?: song.id)) {
+            cacheRetryPolicy.succeeded(queued.id)
+        } else {
+            cacheRetryPolicy.failed(queued.id)
         }
     }
 

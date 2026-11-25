@@ -73,6 +73,7 @@ import com.metrolist.android.playlistimport.containsAndroidInaccessibleReference
 import com.metrolist.android.playlistimport.preparePlaylistBatch
 import com.metrolist.android.playlistimport.preparePlaylistPreview
 import com.metrolist.android.playlistimport.readPlaylistFile
+import com.metrolist.android.spotifyimport.SpotifyImportShortcut
 import com.metrolist.android.spotifyimport.SpotifyLoginScreen
 import com.metrolist.android.spotifyimport.SpotifyPlaylistPickerSheet
 import com.metrolist.android.spotifyimport.SpotifyPlaylistPreviewSheet
@@ -374,6 +375,12 @@ fun BackupRestoreScreen(onNavigateBack: () -> Unit) {
     var pendingDuplicateDestination by remember { mutableStateOf<PlaylistImportManager.Destination?>(null) }
 
     var showSpotifyProviderDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(SpotifyImportShortcut.pending) {
+        if (SpotifyImportShortcut.pending) {
+            SpotifyImportShortcut.pending = false
+            showSpotifyProviderDialog = true
+        }
+    }
     var spotifyInputUrl by remember { mutableStateOf("") }
     var showSpotifyLogin by remember { mutableStateOf(false) }
     var isSpotifyAuthenticating by remember { mutableStateOf(false) }
