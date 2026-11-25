@@ -22,9 +22,11 @@ jobs:
     name: Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    outputs:
+      version: ${{ steps.version.outputs.name }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           submodules: recursive
           persist-credentials: false
@@ -47,7 +49,7 @@ jobs:
           persist-configuration-cache: 'false'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           packages: platform-tools
 
@@ -99,3 +101,53 @@ jobs:
             --title "Ondara $VERSION" \
             --notes-file notes.md \
             --target "$GITHUB_SHA"
+
+  windows:
+    name: Windows app
+    needs: android
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ needs.android.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Prepare Gradle
+        uses: ./.github/actions/prepare-ci-gradle
+        with:
+          cache-scope: ondara-desktop-windows
+          persist-configuration-cache: 'false'
+
+      - name: Generate installer icons
+        uses: ./.github/actions/generate-icons
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
+        with:
+          global-json-file: metro-wv2-helper/global.json
+
+      - name: Build Windows login helper
+        shell: pwsh
+        working-directory: metro-wv2-helper
+        run: |
+          $output = "../desktopApp/src/desktopMain/resources/windows"
+          dotnet publish "metro-wv2-helper.csproj" --configuration Release --runtime win-x64 --self-contained true --output $output -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -p:PublishReadyToRun=true
+          if ($LASTEXITCODE -ne 0) { throw "Windows login helper build failed" }
+
+      - name: Build Windows portable package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          ./gradlew :desktopApp:assembleWindowsRelease             -Pmetrolist.debug=false             -Pmetrolist.verifyPackaging=false             -Pmetrolist.desktop.arch=x86_64             -PappVersion="$VERSION"             --no-daemon --no-configuration-cache
+          test -f dist/Ondara-Desktop-Windows.zip
+
+      - name: Attach to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "v$VERSION" dist/Ondara-Desktop-Windows.zip --repo "$GITHUB_REPOSITORY" --clobber

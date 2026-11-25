@@ -39,10 +39,10 @@ import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 object DesktopUpdateManager {
-    private const val API_BASE = "https://api.github.com/repos/MetrolistGroup/Metrolist"
+    private const val API_BASE = "https://api.github.com/repos/Marietuno/Ondara"
     internal const val RELEASES_URL = "$API_BASE/releases?per_page=50"
     private const val REGISTRY_PATH = "Software\\Metrolist\\Desktop"
-    private const val MAX_MANAGER_BYTES = 128L * 1024 * 1024
+    private const val MAX_PACKAGE_BYTES = 1024L * 1024 * 1024
 
     private val client = sharedOkHttpClient
     private val json = Json { ignoreUnknownKeys = true }
@@ -88,11 +88,11 @@ object DesktopUpdateManager {
     suspend fun cachedReleases(): List<GitHubDesktopRelease> =
         withContext(Dispatchers.IO) {
             runCatching {
-                if (Settings.shared.updateCacheSource != "desktop-github-releases-metrolist-v1") {
+                if (Settings.shared.updateCacheSource != "desktop-github-releases-ondara-v1") {
                     Settings.shared.cachedUpdateReleasesJson = ""
                     Settings.shared.lastUpdateCheckTimestamp = 0L
                     Settings.shared.lastUpdateCheckAttemptTimestamp = 0L
-                    Settings.shared.updateCacheSource = "desktop-github-releases-metrolist-v1"
+                    Settings.shared.updateCacheSource = "desktop-github-releases-ondara-v1"
                 }
                 parseReleases(Settings.shared.cachedUpdateReleasesJson)
             }.getOrDefault(emptyList())
@@ -144,44 +144,40 @@ object DesktopUpdateManager {
         withContext(Dispatchers.IO) {
             mutableDownloadProgress.value = null
             runCatching {
-                val root = checkNotNull(installationRoot()) { "Metrolist installation was not found" }.root
+                val root = checkNotNull(installationRoot()) { "Ondara installation was not found" }.root
                 val release = getRelease("$API_BASE/releases/tags/v$version")
                 val errorMsg = getString(Res.string.update_not_published_stable)
                 check(release.tagName == "v$version" && release.canInstall(registeredInstallation = true)) { errorMsg }
-                val expectedName = "metrolist-installer-windows-x64-$version.exe"
-                val asset =
-                    checkNotNull(release.installer) {
-                        "Release v$version does not contain $expectedName"
-                    }
-                check(asset.state == "uploaded") { "The update manager is not ready" }
-                check(asset.size in 1..MAX_MANAGER_BYTES) { "The update manager has an invalid size" }
+                val asset = checkNotNull(release.installer) { "Release v$version does not contain $PORTABLE_PACKAGE" }
+                check(asset.state == "uploaded") { "The update package is not ready" }
+                check(asset.size in 1..MAX_PACKAGE_BYTES) { "The update package has an invalid size" }
                 val expectedDigest = parseGitHubSHA256(asset.digest)
 
-                val managerDirectory = root.resolve("manager")
-                Files.createDirectories(managerDirectory)
-                val partial = managerDirectory.resolve("MetrolistManager.new.exe")
-                val destination = managerDirectory.resolve("MetrolistManager.exe")
-                Files.deleteIfExists(partial)
-                try {
-                    download(asset, partial, expectedDigest)
-                    Files.move(
-                        partial,
-                        destination,
-                        StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING,
-                    )
-                } finally {
-                    Files.deleteIfExists(partial)
-                }
+                val updateDirectory = portableUpdateDirectory()
+                updateDirectory.toFile().deleteRecursively()
+                Files.createDirectories(updateDirectory)
+                val archive = updateDirectory.resolve("package.zip")
+                val staging = updateDirectory.resolve("staging")
+                download(asset, archive, expectedDigest)
+                currentCoroutineContext().ensureActive()
+                extractPortablePackage(archive, staging)
+                Files.deleteIfExists(archive)
+                check(Files.isRegularFile(staging.resolve(PORTABLE_LAUNCHER))) { "The update package is incomplete" }
 
+                val script = updateDirectory.resolve("apply-update.ps1")
+                Files.writeString(script, portableUpdateScript(ProcessHandle.current().pid(), staging, root))
                 currentCoroutineContext().ensureActive()
                 withContext(NonCancellable) {
                     ProcessBuilder(
-                        destination.toString(),
-                        "update",
-                        "--pid",
-                        ProcessHandle.current().pid().toString(),
-                    ).directory(managerDirectory.toFile()).start()
+                        "powershell.exe",
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-WindowStyle",
+                        "Hidden",
+                        "-File",
+                        script.toString(),
+                    ).directory(updateDirectory.toFile()).start()
                     onLaunched()
                 }
                 Unit
@@ -198,7 +194,7 @@ object DesktopUpdateManager {
                 .url(url)
                 .header("Accept", "application/vnd.github+json")
                 .header("X-GitHub-Api-Version", "2026-03-10")
-                .header("User-Agent", "Metrolist-Desktop/${BuildConfig.APP_VERSION}")
+                .header("User-Agent", "Ondara-Desktop/${BuildConfig.APP_VERSION}")
                 .build()
         return client.newCall(request).execute().use { response ->
             check(response.isSuccessful) { "GitHub returned ${response.code}" }
@@ -215,7 +211,7 @@ object DesktopUpdateManager {
             Request
                 .Builder()
                 .url(asset.downloadUrl)
-                .header("User-Agent", "Metrolist-Desktop/${BuildConfig.APP_VERSION}")
+                .header("User-Agent", "Ondara-Desktop/${BuildConfig.APP_VERSION}")
                 .build()
         val call = client.newCall(request)
         activeDownload = call
@@ -236,44 +232,67 @@ object DesktopUpdateManager {
         }
     }
 
+    // Ondara ships as a portable folder; it updates itself when it runs from that folder and can write to it.
     private fun installationRoot(): DesktopInstallation? =
         runCatching {
             if (!OsUtil.isWindows) return null
-            if (!Advapi32Util.registryKeyExists(WinReg.HKEY_CURRENT_USER, REGISTRY_PATH)) return null
-            val root =
-                Path.of(
-                    Advapi32Util.registryGetStringValue(
-                        WinReg.HKEY_CURRENT_USER,
-                        REGISTRY_PATH,
-                        "InstallLocation",
-                    ),
-                )
-            val registeredVersion =
-                Advapi32Util.registryGetStringValue(
-                    WinReg.HKEY_CURRENT_USER,
-                    REGISTRY_PATH,
-                    "Version",
-                )
-            val marker = json.decodeFromString<DesktopInstallMarker>(Files.readString(root.resolve("manager/install.json")))
-            check(marker.schema == 1 && marker.appId == "com.metrolist.desktop" && marker.version == registeredVersion) {
-                "Metrolist installation metadata is invalid"
-            }
-            check(Files.isRegularFile(root.resolve("app/Metrolist.exe"))) { "Metrolist installation is incomplete" }
-            check(
-                isRunningRegisteredDesktop(
-                    root,
-                    ProcessHandle
-                        .current()
-                        .info()
-                        .command()
-                        .orElse(null),
-                ),
-            ) {
-                "The running application is not the registered installation"
-            }
-            DesktopInstallation(root, registeredVersion)
+            val command =
+                ProcessHandle
+                    .current()
+                    .info()
+                    .command()
+                    .orElse(null) ?: return null
+            val launcher = Path.of(command)
+            if (!launcher.fileName.toString().equals(PORTABLE_LAUNCHER, ignoreCase = true)) return null
+            val root = launcher.parent
+            check(Files.isRegularFile(root.resolve("install-manifest.json"))) { "Ondara folder is incomplete" }
+            check(Files.isWritable(root)) { "Ondara folder is read-only" }
+            DesktopInstallation(root, BuildConfig.APP_VERSION)
         }.getOrNull()
+
+    private fun portableUpdateDirectory(): Path =
+        Path.of(System.getenv("LOCALAPPDATA")?.takeIf(String::isNotBlank) ?: System.getProperty("java.io.tmpdir"), "Ondara", "update")
+
+    private fun extractPortablePackage(
+        archive: Path,
+        destination: Path,
+    ) {
+        val target = destination.toAbsolutePath().normalize()
+        Files.createDirectories(target)
+        java.util.zip.ZipFile(archive.toFile()).use { zip ->
+            zip.entries().asSequence().forEach { entry ->
+                val output = target.resolve(entry.name).normalize()
+                check(output.startsWith(target)) { "The update package contains an invalid path" }
+                if (entry.isDirectory) {
+                    Files.createDirectories(output)
+                } else {
+                    Files.createDirectories(output.parent)
+                    zip.getInputStream(entry).use { input -> Files.copy(input, output, StandardCopyOption.REPLACE_EXISTING) }
+                }
+            }
+        }
+    }
+
+    // Waits for Ondara to exit, copies the new files over the folder without deleting anything else, and restarts it.
+    private fun portableUpdateScript(
+        pid: Long,
+        staging: Path,
+        root: Path,
+    ): String {
+        fun quoted(path: Path) = "'" + path.toString().replace("'", "''") + "'"
+        return """
+            |${'$'}ErrorActionPreference = 'SilentlyContinue'
+            |while (Get-Process -Id $pid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500 }
+            |Start-Sleep -Seconds 1
+            |robocopy ${quoted(staging)} ${quoted(root)} /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+            |Start-Process -FilePath ${quoted(root.resolve(PORTABLE_LAUNCHER))}
+            |Remove-Item -Recurse -Force ${quoted(staging)}
+            """.trimMargin()
+    }
 }
+
+internal const val PORTABLE_PACKAGE = "Ondara-Desktop-Windows.zip"
+internal const val PORTABLE_LAUNCHER = "Ondara.exe"
 
 @Serializable
 private data class DesktopInstallMarker(
@@ -310,10 +329,10 @@ data class GitHubDesktopRelease(
                     }
             }
     val installer: GitHubDesktopAsset?
-        get() = assets.singleOrNull { it.name == "metrolist-installer-windows-x64-$version.exe" }
+        get() = assets.singleOrNull { it.name == PORTABLE_PACKAGE }
     val url: String get() =
         nightlyAsset?.takeIf { isNightly }?.downloadUrl
-            ?: "https://github.com/MetrolistGroup/Metrolist/releases/tag/$tagName"
+            ?: "https://github.com/Marietuno/Ondara/releases/tag/$tagName"
 
     internal fun canInstall(registeredInstallation: Boolean): Boolean =
         registeredInstallation && !draft && !prerelease && ReleaseVersion.parse(version)?.prerelease?.isEmpty() == true

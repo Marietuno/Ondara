@@ -165,14 +165,14 @@ object SongCacheManager {
     private val settingsDir by lazy {
         File(
             XdgUtils.getXdgConfigHome(),
-            "metrolist",
+            "ondara",
         ).also { check(it.mkdirs() || it.isDirectory) }
     }
     private val cacheSettingsFile by lazy { File(settingsDir, "cache.properties") }
     val cacheDir: File by lazy {
         File(
             XdgUtils.getXdgCacheHome(),
-            "metrolist/cache",
+            "ondara/cache",
         ).also { check(it.mkdirs() || it.isDirectory) }
     }
     private val indexFile by lazy { File(cacheDir, CACHE_INDEX_FILE_NAME) }

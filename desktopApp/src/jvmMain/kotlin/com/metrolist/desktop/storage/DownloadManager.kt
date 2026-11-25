@@ -272,7 +272,7 @@ object DownloadManager {
         get() = getDownloadDir()
 
     private val downloadMetadataFile: File by lazy {
-        val dir = File(XdgUtils.getXdgStateHome(), "metrolist").also { check(it.mkdirs() || it.isDirectory) }
+        val dir = File(XdgUtils.getXdgStateHome(), "ondara").also { check(it.mkdirs() || it.isDirectory) }
         File(dir, "downloads.json")
     }
 

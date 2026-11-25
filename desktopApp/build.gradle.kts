@@ -757,7 +757,7 @@ compose.desktop {
                 "mac" -> targetFormats(TargetFormat.Dmg)
                 else -> targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage)
             }
-            packageName = "Metrolist"
+            packageName = "Ondara"
             val versionMatch =
                 Regex("""^(\d+)\.(\d+)\.(\d+)(?:-[A-Za-z0-9][A-Za-z0-9._-]*)?(?:\+[0-9A-Za-z.-]+)?$""")
                     .matchEntire(appVersion)
@@ -782,9 +782,9 @@ compose.desktop {
                 } else {
                     versionComponents.joinToString(".")
                 }
-            description = "Metrolist"
-            copyright = "© 2026 Metrolist"
-            vendor = "MetrolistGroup"
+            description = "Ondara"
+            copyright = "© 2026 Ondara (based on Metrolist, GPL-3.0)"
+            vendor = "Ondara"
 
             appResourcesRootDir.set(nativeResourcesDir)
 
@@ -860,7 +860,7 @@ compose.desktop {
                 }
                 iconFile.set(project.file("src/desktopMain/resources/logo.icns"))
                 dmgPackageVersion = packageVersion
-                dockName = "Metrolist"
+                dockName = "Ondara"
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.metrolist.android.radio
 
+import com.metrolist.shared.radio.RadioStation
+import com.metrolist.shared.radio.RadioBrowser
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle

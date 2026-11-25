@@ -115,6 +115,7 @@ import com.metrolist.desktop.ui.components.DesktopPlayerVisibility
 import com.metrolist.desktop.ui.components.FloatingSearchOverlay
 import com.metrolist.desktop.ui.components.FullscreenPlayerView
 import com.metrolist.desktop.ui.components.LocalCaptionBarInsets
+import com.metrolist.desktop.radio.DesktopRadioWindow
 import com.metrolist.desktop.ui.components.MiniplayerWindow
 import com.metrolist.desktop.ui.components.ShortcutsOverlay
 import com.metrolist.desktop.ui.components.TokenLoginDialog
@@ -739,7 +740,7 @@ private fun startupRuntimeAvailable(): Boolean {
 
 private fun configureLinuxWindowIdentity() {
     if (!OsUtil.isLinux) return
-    System.setProperty("awt.app.id", "Metrolist")
+    System.setProperty("awt.app.id", "Ondara")
     if (WaylandScale.isNativeWaylandActive()) return
     runCatching {
         // XToolkit's constructor names the X11 class after the creating thread, so create it here and then rename it.
@@ -747,7 +748,7 @@ private fun configureLinuxWindowIdentity() {
         if (toolkit.javaClass.name != "sun.awt.X11.XToolkit") return@runCatching
         toolkit.javaClass.getDeclaredField("awtAppClassName").apply {
             isAccessible = true
-            set(null, "Metrolist")
+            set(null, "Ondara")
         }
     }
 }
@@ -1360,7 +1361,7 @@ private fun runDesktopApp(args: Array<String>) {
             }
         }
 
-        val appTitle = if (BuildConfig.DEBUG) "Metrolist Debug" else "Metrolist"
+        val appTitle = if (BuildConfig.DEBUG) "Ondara Debug" else "Ondara"
         val windowTitle =
             PlayerState.currentTrack?.takeIf { it.title.isNotBlank() }?.let { track ->
                 val artists = track.artists.joinToString { it.displayName }
@@ -1724,6 +1725,7 @@ private fun runDesktopApp(args: Array<String>) {
 
         if (integrationsReady && Settings.shared.desktopOnboardingComplete) {
             MiniplayerWindow()
+            DesktopRadioWindow()
         }
 
         // System tray icon (stock Compose Tray on macOS, ComposeNativeTray on Linux/Windows)
