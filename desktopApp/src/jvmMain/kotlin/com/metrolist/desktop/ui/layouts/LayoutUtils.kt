@@ -22,6 +22,7 @@ import com.metrolist.desktop.state.content.PlaylistAlbumState
 import com.metrolist.desktop.state.content.PodcastState
 import com.metrolist.desktop.state.content.SearchState
 import com.metrolist.desktop.state.playback.PlayerState
+import com.metrolist.shared.generated.resources.radio_online
 import com.metrolist.shared.generated.resources.Res
 import com.metrolist.shared.generated.resources.app_name
 import com.metrolist.shared.generated.resources.browse
@@ -116,6 +117,7 @@ object LayoutUtils {
                 NavigationId.HISTORY -> stringResource(Res.string.history)
                 NavigationId.STATISTICS -> stringResource(Res.string.statistics)
                 NavigationId.LISTEN_TOGETHER -> stringResource(Res.string.listen_together)
+                NavigationId.RADIO -> stringResource(Res.string.radio_online)
                 else -> appName
             }
         val autoPlaylistTitle =

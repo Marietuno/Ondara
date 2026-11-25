@@ -29,6 +29,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,14 +45,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.WindowPosition
-import androidx.compose.ui.window.WindowState
+import com.metrolist.desktop.state.app.DesktopNavigation
 import com.metrolist.desktop.state.playback.PlayerState
-import com.metrolist.desktop.ui.DesktopDensityProvider
-import com.metrolist.desktop.ui.theme.MetrolistTheme
-import com.metrolist.desktop.window.DesktopWindow
+import com.metrolist.shared.ui.navigation.Screen
 import com.metrolist.shared.generated.resources.Res
 import com.metrolist.shared.generated.resources.radio_add_favorite
 import com.metrolist.shared.generated.resources.radio_all_countries
@@ -84,27 +82,7 @@ import org.jetbrains.compose.resources.stringResource
 import java.util.Locale
 
 @Composable
-fun DesktopRadioWindow() {
-    if (!DesktopRadio.windowOpen) return
-    val windowState = remember { WindowState(position = WindowPosition.Aligned(Alignment.Center), size = DpSize(460.dp, 760.dp)) }
-    DesktopWindow(
-        onCloseRequest = { DesktopRadio.windowOpen = false },
-        title = "Ondara · " + stringResource(Res.string.radio_online),
-        state = windowState,
-        minimumSize = DpSize(380.dp, 520.dp),
-    ) {
-        MetrolistTheme {
-            DesktopDensityProvider {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-                    DesktopRadioScreen()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DesktopRadioScreen() {
+fun DesktopRadioScreen() {
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf(DesktopRadio.initialQuery) }
     var stations by remember { mutableStateOf<List<RadioStation>>(emptyList()) }
@@ -378,6 +356,35 @@ private fun NowPlayingBar() {
                 }
             }
             Slider(value = DesktopRadio.volume, onValueChange = DesktopRadio::changeVolume, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+// Compact control in the top bar so a playing station can be stopped or reopened from any screen.
+@Composable
+fun DesktopRadioTopBarControl() {
+    val station = DesktopRadio.station ?: return
+    val status = DesktopRadio.status
+    if (status != DesktopRadioStatus.PLAYING && status != DesktopRadioStatus.CONNECTING) return
+    Surface(
+        onClick = { DesktopNavigation.navigate(Screen.Radio) },
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = Modifier.padding(horizontal = 4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 10.dp)) {
+            Icon(MetrolistIcons.Outlined.Radio, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                station.displayName,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 160.dp),
+            )
+            IconButton(onClick = DesktopRadio::stop, shapes = IconButtonDefaults.shapes(), modifier = Modifier.size(32.dp)) {
+                Icon(MetrolistIcons.Filled.Pause, contentDescription = stringResource(Res.string.radio_stop), modifier = Modifier.size(16.dp))
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ import com.metrolist.desktop.state.app.AppState
 import com.metrolist.desktop.state.app.DesktopNavigation
 import com.metrolist.desktop.storage.DownloadManager
 import com.metrolist.desktop.storage.DownloadedFile
+import com.metrolist.shared.settings.NavigationId
 import com.metrolist.shared.settings.LibraryViewType
 import com.metrolist.shared.settings.NavItem
 import com.metrolist.shared.settings.Settings
@@ -68,7 +69,16 @@ object LibraryState {
         Settings.shared.libraryViewType = type
     }
 
-    var sidebarNavItems by mutableStateOf(Settings.shared.desktopSidebarNavItems())
+    var sidebarNavItems by mutableStateOf(
+        Settings.shared.desktopSidebarNavItems().let { items ->
+            if (items.any { it.id == NavigationId.RADIO }) {
+                items
+            } else {
+                val libraryIndex = items.indexOfFirst { it.id == NavigationId.LIBRARY }
+                items.toMutableList().apply { add(if (libraryIndex >= 0) libraryIndex + 1 else size, NavItem(NavigationId.RADIO)) }
+            }
+        },
+    )
 
     var isEditingSidebar by mutableStateOf(false)
 

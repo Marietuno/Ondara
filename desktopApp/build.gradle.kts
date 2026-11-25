@@ -95,24 +95,24 @@ group = "com.metrolist"
 val appVersion = providers.gradleProperty("appVersion").get()
 version = appVersion
 
+// Ondara targets desktops with plenty of RAM: larger heaps and the full JIT keep long sessions with video,
+// animated covers and lyrics from stalling in garbage collection or running out of native buffers.
 val desktopMemoryJvmArgs =
     listOf(
-        "-XX:MaxDirectMemorySize=128m",
-        "-Xms32m",
-        "-Xmx384m",
+        "-XX:MaxDirectMemorySize=512m",
+        "-Xms128m",
+        "-Xmx1536m",
         "-XX:+UseG1GC",
         "-XX:MinHeapFreeRatio=10",
-        "-XX:MaxHeapFreeRatio=20",
+        "-XX:MaxHeapFreeRatio=30",
         "-XX:+ExplicitGCInvokesConcurrent",
-        "-XX:ParallelGCThreads=2",
-        "-XX:ConcGCThreads=1",
-        "-XX:TieredStopAtLevel=1",
-        "-XX:CICompilerCount=1",
-        "-XX:ReservedCodeCacheSize=32m",
+        "-XX:ParallelGCThreads=4",
+        "-XX:ConcGCThreads=2",
+        "-XX:ReservedCodeCacheSize=128m",
         "-XX:TrimNativeHeapInterval=5000",
         "-XX:+UseCompactObjectHeaders",
         "-Djdk.nio.maxCachedBufferSize=262144",
-        "-Dskiko.gpu.resourceCacheLimit=64m",
+        "-Dskiko.gpu.resourceCacheLimit=256m",
         "-Dorg.bytedeco.javacpp.maxPhysicalBytes=0",
         "-Dorg.bytedeco.javacpp.maxBytes=0",
     )

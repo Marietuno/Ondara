@@ -42,6 +42,9 @@ sealed class Screen : NavKey {
     data object Statistics : Screen()
 
     @Serializable
+    data object Radio : Screen()
+
+    @Serializable
     data object Wrapped : Screen()
 
     @Serializable
@@ -187,6 +190,7 @@ val Screen.navigationId: String?
             Screen.History -> NavigationId.HISTORY
             Screen.Statistics -> NavigationId.STATISTICS
             Screen.ListenTogether -> NavigationId.LISTEN_TOGETHER
+            Screen.Radio -> NavigationId.RADIO
             else -> null
         }
 
@@ -197,6 +201,7 @@ fun screenForNavigationId(id: String): Screen? =
         NavigationId.HISTORY -> Screen.History
         NavigationId.STATISTICS -> Screen.Statistics
         NavigationId.LISTEN_TOGETHER -> Screen.ListenTogether
+        NavigationId.RADIO -> Screen.Radio
         else -> null
     }
 

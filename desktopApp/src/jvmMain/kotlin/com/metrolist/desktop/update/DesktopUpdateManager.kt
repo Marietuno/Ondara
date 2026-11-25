@@ -118,7 +118,7 @@ object DesktopUpdateManager {
     }
 
     internal fun availableUpdate(releases: List<GitHubDesktopRelease>): GitHubDesktopRelease? =
-        releases.firstOrNull { isNewerDesktopVersion(it.version, BuildConfig.APP_VERSION) }
+        releases.firstOrNull { isNewerDesktopVersion(it.version, BuildConfig.APP_VERSION) && it.hasPlatformPackage }
             ?: newNightly(releases, confirm = true)
                 ?.takeIf { followsNightlyUpdates(Settings.shared.updateChannel, BuildConfig.APP_VERSION) }
 
@@ -128,7 +128,7 @@ object DesktopUpdateManager {
         includePrereleases: Boolean = true,
     ): GitHubDesktopRelease? =
         parseReleases(releasesJson)
-            .firstOrNull { (includePrereleases || !it.prerelease) && isNewerDesktopVersion(it.version, currentVersion) }
+            .firstOrNull { (includePrereleases || !it.prerelease) && isNewerDesktopVersion(it.version, currentVersion) && it.hasPlatformPackage }
 
     suspend fun canInstall(release: GitHubDesktopRelease): Boolean =
         withContext(Dispatchers.IO) { release.canInstall(installationRoot() != null) }
@@ -330,6 +330,10 @@ data class GitHubDesktopRelease(
             }
     val installer: GitHubDesktopAsset?
         get() = assets.singleOrNull { it.name == PORTABLE_PACKAGE }
+
+    // Some releases only carry the Android APK; Windows must not offer those as desktop updates.
+    val hasPlatformPackage: Boolean
+        get() = !OsUtil.isWindows || installer != null
     val url: String get() =
         nightlyAsset?.takeIf { isNightly }?.downloadUrl
             ?: "https://github.com/Marietuno/Ondara/releases/tag/$tagName"

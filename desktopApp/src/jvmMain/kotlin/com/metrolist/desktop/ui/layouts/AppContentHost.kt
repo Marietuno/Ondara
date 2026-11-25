@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
+import com.metrolist.desktop.radio.DesktopRadioScreen
 import com.metrolist.desktop.deviceconnect.DesktopDeviceConnect
 import com.metrolist.desktop.state.app.AppState
 import com.metrolist.desktop.state.app.UiState
@@ -206,6 +207,14 @@ fun AppContentHost(
 
                     is Screen.AutoPlaylist -> {
                         LocalPlaylistScreen(destination.type)
+                    }
+
+                    Screen.Radio -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                            Box(Modifier.widthIn(max = 1100.dp).fillMaxSize()) {
+                                DesktopRadioScreen()
+                            }
+                        }
                     }
 
                     Screen.ListenTogetherBlockedUsers -> {

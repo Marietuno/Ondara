@@ -122,7 +122,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.metrolist.desktop.radio.DesktopRadio
+import com.metrolist.desktop.radio.DesktopRadioTopBarControl
 import com.metrolist.desktop.deviceconnect.DesktopDeviceConnect
 import com.metrolist.desktop.state.app.UiState
 import com.metrolist.desktop.state.auth.AuthState
@@ -143,7 +143,6 @@ import com.metrolist.desktop.utils.WindowDragHandle
 import com.metrolist.desktop.window.DesktopWindowScope
 import com.metrolist.desktop.window.asComposeWindowScope
 import com.metrolist.desktop.window.jna.structure.isWindows10OrLater
-import com.metrolist.shared.generated.resources.radio_open
 import com.metrolist.shared.generated.resources.Res
 import com.metrolist.shared.generated.resources.cd_account_menu
 import com.metrolist.shared.generated.resources.cd_devtools
@@ -255,9 +254,7 @@ fun DesktopWindowScope.CustomTitleBar(
                     colorScheme = colorScheme,
                 )
                 navItems()
-                IconButton(onClick = { DesktopRadio.windowOpen = true }, shapes = IconButtonDefaults.shapes()) {
-                    Icon(MetrolistIcons.Outlined.Radio, contentDescription = stringResource(Res.string.radio_open))
-                }
+                DesktopRadioTopBarControl()
                 DevtoolsButton(colorScheme)
             }
 
@@ -379,9 +376,7 @@ fun DesktopWindowScope.TopBarWithPlayer(
                     colorScheme = colorScheme,
                 )
                 navItems()
-                IconButton(onClick = { DesktopRadio.windowOpen = true }, shapes = IconButtonDefaults.shapes()) {
-                    Icon(MetrolistIcons.Outlined.Radio, contentDescription = stringResource(Res.string.radio_open))
-                }
+                DesktopRadioTopBarControl()
                 DevtoolsButton(colorScheme)
                 if (showSearchInTopBar) {
                     IconButton(

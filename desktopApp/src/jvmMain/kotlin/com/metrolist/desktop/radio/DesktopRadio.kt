@@ -35,7 +35,6 @@ object DesktopRadio {
     private val prefsFile by lazy { File(XdgUtils.getXdgConfigHome(), "ondara/radio.json") }
     private var prefs = runCatching { json.decodeFromString<DesktopRadioPrefs>(prefsFile.readText()) }.getOrDefault(DesktopRadioPrefs())
 
-    var windowOpen by mutableStateOf(false)
     var favorites by mutableStateOf(prefs.favorites)
         private set
     var station by mutableStateOf(prefs.lastStation)

@@ -115,7 +115,6 @@ import com.metrolist.desktop.ui.components.DesktopPlayerVisibility
 import com.metrolist.desktop.ui.components.FloatingSearchOverlay
 import com.metrolist.desktop.ui.components.FullscreenPlayerView
 import com.metrolist.desktop.ui.components.LocalCaptionBarInsets
-import com.metrolist.desktop.radio.DesktopRadioWindow
 import com.metrolist.desktop.ui.components.MiniplayerWindow
 import com.metrolist.desktop.ui.components.ShortcutsOverlay
 import com.metrolist.desktop.ui.components.TokenLoginDialog
@@ -1339,6 +1338,7 @@ private fun runDesktopApp(args: Array<String>) {
                     Screen.History,
                     Screen.Statistics,
                     Screen.ListenTogether,
+                    Screen.Radio,
                 )
             }
         val navigationState =
@@ -1725,7 +1725,6 @@ private fun runDesktopApp(args: Array<String>) {
 
         if (integrationsReady && Settings.shared.desktopOnboardingComplete) {
             MiniplayerWindow()
-            DesktopRadioWindow()
         }
 
         // System tray icon (stock Compose Tray on macOS, ComposeNativeTray on Linux/Windows)
