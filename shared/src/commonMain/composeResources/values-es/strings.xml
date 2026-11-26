@@ -2659,4 +2659,7 @@
     <string name="radio_behind_live">%1$s respecto al directo</string>
     <string name="radio_service_error">No se ha podido iniciar el reproductor de radio. Vuelve a intentarlo.</string>
     <string name="radio_stream_error">Esta emisora no responde. Prueba con otra.</string>
+    <string name="radio_auto_popular_country">Populares en %1$s</string>
+    <string name="radio_auto_popular_world">Populares en el mundo</string>
+    <string name="radio_auto_genres">Géneros</string>
 </resources>

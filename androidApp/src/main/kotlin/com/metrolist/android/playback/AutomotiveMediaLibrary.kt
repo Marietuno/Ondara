@@ -481,6 +481,8 @@ internal class AutomotiveMediaLibrary(
             }
         }
 
+    val radio by lazy { AutomotiveRadioLibrary(context) }
+
     val rootItem: MediaItem =
         folder(
             mediaId = AutomotiveMediaIds.ROOT,
@@ -519,6 +521,7 @@ internal class AutomotiveMediaLibrary(
         return pinnedItems +
             listOf(
                 folder(AutomotiveMediaIds.HOME, context.getString(R.string.home)),
+                radio.rootFolder,
                 folder(AutomotiveMediaIds.HISTORY, context.getString(R.string.history)),
                 folder(AutomotiveMediaIds.LIKED, context.getString(R.string.liked_songs)),
                 folder(AutomotiveMediaIds.DOWNLOADS, context.getString(R.string.downloads)),
@@ -552,6 +555,9 @@ internal class AutomotiveMediaLibrary(
         }
         if (parentId == AutomotiveMediaIds.ROOT) {
             return AutomotivePaging.page(rootChildren(rootBrowsableOnly, rootChildLimit), page, pageSize)
+        }
+        if (AutomotiveRadioIds.isRadio(parentId)) {
+            return AutomotivePaging.page(radio.children(parentId), page, pageSize)
         }
 
         AutomotiveMediaIds.youtubePlaylistId(parentId)?.let { playlistId ->
@@ -739,6 +745,7 @@ internal class AutomotiveMediaLibrary(
         AutomotiveMediaIds.shuffleParent(mediaId)?.let { return shuffleItem(it) }
         if (mediaId == AutomotiveMediaIds.ROOT) return rootItem
         if (mediaId == AutomotiveMediaIds.COLLECTIONS) return folder(mediaId, context.getString(R.string.library))
+        if (AutomotiveRadioIds.isRadio(mediaId)) return radio.item(mediaId)
         mediaItems[mediaId]?.let { item ->
             val artwork = mediaArtworkUri(context, item.mediaMetadata.artworkUri?.toString())
             return item

@@ -5727,4 +5727,7 @@
     <string name="radio_behind_live">%1$s behind live</string>
     <string name="radio_service_error">Could not start the radio player. Try again.</string>
     <string name="radio_stream_error">This station is not responding. Try another one.</string>
+    <string name="radio_auto_popular_country">Popular in %1$s</string>
+    <string name="radio_auto_popular_world">Popular worldwide</string>
+    <string name="radio_auto_genres">Genres</string>
 </resources>

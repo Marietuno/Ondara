@@ -5,23 +5,10 @@ import com.metrolist.shared.radio.RadioBrowser
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.os.SystemClock
 import androidx.core.net.toUri
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -39,68 +26,14 @@ import kotlinx.serialization.json.Json
 
 // Live internet radio, separate from the YouTube Music player so each keeps its own queue and session.
 class RadioService : MediaSessionService() {
-    private lateinit var player: ExoPlayer
+    private lateinit var player: LiveRadioPlayer
     private var session: MediaSession? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val handler = Handler(Looper.getMainLooper())
     private val store by lazy { RadioStore.get(this) }
-    private var retryAttempt = 0
-    private val retry = Runnable { reconnect() }
-    private val releaseTimeshift = Runnable { dropTimeshift() }
-    private var behindLiveMs = 0L
-    private var pausedAtMs: Long? = null
 
     override fun onCreate() {
         super.onCreate()
-        val dataSourceFactory =
-            DefaultHttpDataSource
-                .Factory()
-                .setUserAgent(USER_AGENT)
-                .setAllowCrossProtocolRedirects(true)
-                .setConnectTimeoutMs(10_000)
-                .setReadTimeoutMs(20_000)
-        player =
-            ExoPlayer
-                .Builder(this)
-                .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
-                .setAudioAttributes(
-                    AudioAttributes
-                        .Builder()
-                        .setUsage(C.USAGE_MEDIA)
-                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                        .build(),
-                    true,
-                ).setHandleAudioBecomingNoisy(true)
-                // Keeps Wi-Fi and the CPU awake only while the stream plays with the screen off.
-                .setWakeMode(C.WAKE_MODE_NETWORK)
-                .setLoadControl(
-                    DefaultLoadControl
-                        .Builder()
-                        .setBufferDurationsMs(20_000, MAX_TIMESHIFT_MS.toInt(), 1_500, 4_000)
-                        .build(),
-                ).build()
-        applyBatterySaver()
-        player.addListener(
-            object : Player.Listener {
-                override fun onPlayerError(error: PlaybackException) {
-                    scheduleReconnect()
-                }
-
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (isPlaying) {
-                        retryAttempt = 0
-                        handler.removeCallbacks(retry)
-                    }
-                }
-
-                override fun onMediaItemTransition(
-                    mediaItem: MediaItem?,
-                    reason: Int,
-                ) {
-                    resetTimeshift()
-                }
-            },
-        )
+        player = LiveRadioPlayer(this, ::publishLiveState)
 
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider
@@ -121,11 +54,12 @@ class RadioService : MediaSessionService() {
             )
         session =
             MediaSession
-                .Builder(this, LiveStreamPlayer(player))
+                .Builder(this, player)
                 .setId(SESSION_ID)
                 .setSessionActivity(openIntent)
                 .setCallback(SessionCallback())
                 .build()
+        running = this
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -135,8 +69,7 @@ class RadioService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        handler.removeCallbacks(retry)
-        handler.removeCallbacks(releaseTimeshift)
+        if (running === this) running = null
         scope.cancel()
         session?.run {
             player.release()
@@ -146,101 +79,13 @@ class RadioService : MediaSessionService() {
         super.onDestroy()
     }
 
-    private fun applyBatterySaver() {
-        val mode =
-            if (store.batterySaver) {
-                AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
-            } else {
-                AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED
-            }
-        player.trackSelectionParameters =
-            player.trackSelectionParameters
-                .buildUpon()
-                .setAudioOffloadPreferences(AudioOffloadPreferences.Builder().setAudioOffloadMode(mode).build())
-                .build()
-    }
-
-    // Live streams drop when coverage disappears; keep retrying with backoff while the user wants it playing.
-    private fun scheduleReconnect() {
-        if (!player.playWhenReady || player.mediaItemCount == 0) return
-        handler.removeCallbacks(retry)
-        val delayMs = (RETRY_BASE_MS shl retryAttempt.coerceAtMost(4)).coerceAtMost(RETRY_MAX_MS)
-        retryAttempt++
-        handler.postDelayed(retry, delayMs)
-    }
-
-    private fun reconnect() {
-        if (!player.playWhenReady || player.mediaItemCount == 0) return
-        resetTimeshift()
-        player.seekToDefaultPosition()
-        player.prepare()
-    }
-
-    // Reconnects at the live edge, discarding any audio recorded while paused.
-    private fun goLive() {
-        if (player.mediaItemCount == 0) return
-        handler.removeCallbacks(releaseTimeshift)
-        resetTimeshift()
-        applyBatterySaver()
-        player.stop()
-        player.seekToDefaultPosition()
-        player.prepare()
-        player.play()
-    }
-
-    // A long pause stops recording so the connection and the modem can rest; Play then resumes live.
-    private fun dropTimeshift() {
-        player.stop()
-        resetTimeshift()
-    }
-
-    private fun resetTimeshift() {
-        behindLiveMs = 0L
-        pausedAtMs = null
-        publishLiveState()
-    }
-
     private fun publishLiveState() {
         session?.setSessionExtras(
             Bundle().apply {
-                putLong(EXTRA_BEHIND_LIVE_MS, behindLiveMs)
-                pausedAtMs?.let { putLong(EXTRA_PAUSED_AT_MS, it) }
+                putLong(EXTRA_BEHIND_LIVE_MS, player.behindLiveMs)
+                player.pausedAtMs?.let { putLong(EXTRA_PAUSED_AT_MS, it) }
             },
         )
-    }
-
-    // Pause keeps recording the live stream for a while so Play continues where it stopped (timeshift).
-    private inner class LiveStreamPlayer(
-        player: Player,
-    ) : ForwardingPlayer(player) {
-        override fun play() {
-            handler.removeCallbacks(releaseTimeshift)
-            applyBatterySaver()
-            if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
-                resetTimeshift()
-                seekToDefaultPosition()
-                prepare()
-            } else {
-                pausedAtMs?.let { behindLiveMs += SystemClock.elapsedRealtime() - it }
-                pausedAtMs = null
-                publishLiveState()
-            }
-            super.play()
-        }
-
-        override fun pause() {
-            handler.removeCallbacks(retry)
-            super.pause()
-            if (playbackState == Player.STATE_IDLE) return
-            if (pausedAtMs == null) pausedAtMs = SystemClock.elapsedRealtime()
-            publishLiveState()
-            handler.removeCallbacks(releaseTimeshift)
-            handler.postDelayed(releaseTimeshift, MAX_TIMESHIFT_MS - behindLiveMs.coerceAtMost(MAX_TIMESHIFT_MS - 60_000L))
-        }
-
-        override fun setPlayWhenReady(playWhenReady: Boolean) {
-            if (playWhenReady) play() else pause()
-        }
     }
 
     private inner class SessionCallback : MediaSession.Callback {
@@ -263,7 +108,7 @@ class RadioService : MediaSessionService() {
             customCommand: SessionCommand,
             args: Bundle,
         ): ListenableFuture<SessionResult> {
-            if (customCommand.customAction == COMMAND_GO_LIVE) goLive()
+            if (customCommand.customAction == COMMAND_GO_LIVE) player.goLive()
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
 
@@ -288,16 +133,23 @@ class RadioService : MediaSessionService() {
         const val COMMAND_GO_LIVE = "radio_go_live"
         const val EXTRA_BEHIND_LIVE_MS = "behind_live_ms"
         const val EXTRA_PAUSED_AT_MS = "paused_at_ms"
-        const val MAX_TIMESHIFT_MS = 300_000L
+        const val MAX_TIMESHIFT_MS = LiveRadioPlayer.MAX_TIMESHIFT_MS
         private const val SESSION_ID = "radio"
         private const val CHANNEL_ID = "radio_playback"
         private const val NOTIFICATION_ID = 0x5241
-        private const val USER_AGENT = "MetrolistRadio/1.0"
-        private const val RETRY_BASE_MS = 2_000L
-        private const val RETRY_MAX_MS = 30_000L
         private val json = Json { ignoreUnknownKeys = true }
 
-        private fun decodeStation(value: String): RadioStation? = runCatching { json.decodeFromString<RadioStation>(value) }.getOrNull()
+        @Volatile
+        private var running: RadioService? = null
+
+        /** Pauses the phone radio when another player (Android Auto) takes over. */
+        fun pauseRunning() {
+            running?.player?.takeIf { it.playWhenReady }?.pause()
+        }
+
+        fun encodeStation(station: RadioStation): String = json.encodeToString(station)
+
+        fun decodeStation(value: String): RadioStation? = runCatching { json.decodeFromString<RadioStation>(value) }.getOrNull()
 
         // Item sent by the controller; the service rebuilds the playable URI from the station itself.
         fun requestItem(station: RadioStation): MediaItem =
@@ -313,13 +165,13 @@ class RadioService : MediaSessionService() {
                         .build(),
                 ).build()
 
-        private fun RadioStation.toMediaItem(): MediaItem =
+        fun RadioStation.toMediaItem(artworkUri: android.net.Uri? = favicon.takeIf { it.isNotBlank() }?.toUri()): MediaItem =
             MediaItem
                 .Builder()
                 .setMediaId(id)
                 .setUri(streamUrl)
                 .apply { if (isHls) setMimeType(MimeTypes.APPLICATION_M3U8) }
-                .setMediaMetadata(metadata())
+                .setMediaMetadata(metadata(artworkUri))
                 .setRequestMetadata(
                     MediaItem.RequestMetadata
                         .Builder()
@@ -327,13 +179,13 @@ class RadioService : MediaSessionService() {
                         .build(),
                 ).build()
 
-        private fun RadioStation.metadata(): MediaMetadata =
+        private fun RadioStation.metadata(artworkUri: android.net.Uri? = favicon.takeIf { it.isNotBlank() }?.toUri()): MediaMetadata =
             MediaMetadata
                 .Builder()
                 .setTitle(displayName)
                 .setArtist(displayName)
                 .setStation(displayName)
-                .setArtworkUri(favicon.takeIf { it.isNotBlank() }?.toUri())
+                .setArtworkUri(artworkUri)
                 .setMediaType(MediaMetadata.MEDIA_TYPE_RADIO_STATION)
                 .setIsPlayable(true)
                 .setIsBrowsable(false)

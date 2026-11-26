@@ -119,6 +119,10 @@ object RadioBrowser {
             addQueryParameter("limit", "40")
         }.filter { it.name.isNotBlank() && it.name.length <= 20 }
 
+    suspend fun station(id: String): RadioStation? =
+        get<List<RadioStation>>("json/stations/byuuid") { addQueryParameter("uuids", id) }
+            .firstOrNull { it.streamUrl.isNotBlank() }
+
     // Registers a listen with the directory, which keeps its popularity ranking useful.
     suspend fun reportClick(stationId: String) {
         runCatching { get<Unit>("json/url/$stationId", parse = false) {} }
