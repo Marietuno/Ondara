@@ -838,12 +838,25 @@ fun main() {
     main(emptyArray())
 }
 
+// Earlier versions recorded a ~150 MB class-data archive per release; nothing reads them any more.
+private fun deleteStaleClassDataArchives() {
+    val directory =
+        when {
+            OsUtil.isWindows -> System.getenv("LOCALAPPDATA")?.let { File(it, "Metrolist/cache") }
+            OsUtil.isMac -> File(System.getProperty("user.home"), "Library/Caches/com.metrolist.desktop")
+            else -> System.getenv("METROLIST_CDS_CACHE")?.let(::File)
+        } ?: return
+    Thread({
+        directory.listFiles { file -> file.name.startsWith("appcds-") && file.name.endsWith(".jsa") }?.forEach { it.delete() }
+    }, "StaleCdsCleanup").apply { isDaemon = true }.start()
+}
+
 fun main(args: Array<String>) {
     // Xlib must enter thread-safe mode before AWT can initialize it on Linux/X11.
     if (OsUtil.isLinux && !WaylandScale.shouldUseNativeWayland()) initializeLinuxX11Threading()
     // The JDK reads this once when its default proxy selector initializes.
     if (OsUtil.isWindows) System.getProperties().putIfAbsent("java.net.useSystemProxies", "true")
-    runCatching { System.getProperty("metrolist.cds.cache")?.let { File(it).mkdirs() } }
+    deleteStaleClassDataArchives()
     startup.trace("main")
     val recoveryIndex = args.indexOf(DesktopCrashRecovery.ARGUMENT)
     val pendingReport = if (recoveryIndex < 0) runCatching { DesktopCrashRecovery.store.pendingReportId() }.getOrNull() else null

@@ -239,15 +239,8 @@ private class VerifyReleaseDistributableAction(
             "Release distributable must contain a base CDS archive"
         }
         val launcherConfig = root.walkTopDown().single { it.name == "Ondara.cfg" }.readText()
-        listOf(
-            "-Xshare:auto",
-            "-XX:+VerifySharedSpaces",
-            "-XX:+AutoCreateSharedArchive",
-            "-XX:SharedArchiveFile=",
-            "-Dmetrolist.cds.cache=",
-        ).forEach { option ->
-            check(launcherConfig.contains("java-options=$option")) { "Release launcher is missing $option" }
-        }
+        check(launcherConfig.contains("java-options=-Xshare:auto")) { "Release launcher is missing -Xshare:auto" }
+        check(!launcherConfig.contains("AutoCreateSharedArchive")) { "Release launcher must not record an app CDS archive" }
         val jars = root.walkTopDown().filter { it.isFile && it.extension.equals("jar", ignoreCase = true) }.toList()
         if (jars.isEmpty()) throw GradleException("Release distributable contains no JARs at ${root.absolutePath}")
 

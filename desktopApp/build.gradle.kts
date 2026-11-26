@@ -866,12 +866,6 @@ compose.desktop {
     }
 }
 
-val cdsCache =
-    when (platform) {
-        "win" -> "\$LOCALAPPDATA/Metrolist/cache"
-        "mac" -> "\$HOME/Library/Caches/com.metrolist.desktop"
-        else -> "\$METROLIST_CDS_CACHE"
-    }
 // Compose assigns launcherJvmArgs while registering its tasks after project evaluation.
 afterEvaluate {
     tasks.withType<AbstractProguardTask>().configureEach {
@@ -886,13 +880,9 @@ afterEvaluate {
             runtimeImage.set(tasks.named<AbstractJLinkTask>("createReleaseRuntimeImage").flatMap { it.destinationDir })
         }
         if (name.startsWith("createReleaseDistributable") || name.startsWith("packageRelease")) {
-            launcherJvmArgs.addAll(
-                "-Dmetrolist.cds.cache=$cdsCache",
-                "-Xshare:auto",
-                "-XX:+VerifySharedSpaces",
-                "-XX:+AutoCreateSharedArchive",
-                "-XX:SharedArchiveFile=$cdsCache/appcds-$sentryBundleId.jsa",
-            )
+            // Only the JDK's base CDS archive: recording an app archive (-XX:+AutoCreateSharedArchive) made the first
+            // launch after every update, or after the JVM was killed before writing it, take ~30 s instead of ~3 s.
+            launcherJvmArgs.add("-Xshare:auto")
         }
     }
 }
