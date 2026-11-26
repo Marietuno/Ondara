@@ -597,6 +597,7 @@ class Settings(
     var showBottomNavHome by preference(ShowBottomNavHomeKey, true)
     var showBottomNavSearch by preference(ShowBottomNavSearchKey, true)
     var showBottomNavLibrary by preference(ShowBottomNavLibraryKey, true)
+    var showBottomNavRadio by preference(true)
     var speedDialArtworkRefreshTimes by blobPreference(SpeedDialArtworkRefreshTimesKey)
     var speedDialSurprisePinned by preference(SpeedDialSurprisePinnedKey, false)
 

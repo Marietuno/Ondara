@@ -1,17 +1,23 @@
 package com.metrolist.android.radio
 
+import com.metrolist.shared.generated.resources.radio_stream_error
+import com.metrolist.shared.generated.resources.radio_service_error
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.Lifecycle
+import androidx.compose.ui.unit.Dp
 import com.metrolist.shared.radio.RadioStation
 import com.metrolist.shared.radio.RadioCountry
 import com.metrolist.shared.radio.RadioTag
 import com.metrolist.shared.radio.RadioQuery
 import com.metrolist.shared.radio.RadioBrowser
-import android.content.ComponentName
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -71,9 +77,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionCommand
-import androidx.media3.session.SessionToken
 import coil3.compose.AsyncImage
 import com.metrolist.android.ui.theme.MetrolistTheme
 import com.metrolist.shared.generated.resources.Res
@@ -117,7 +120,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import java.util.Locale
@@ -137,6 +139,7 @@ data class RadioNowPlaying(
     val isBuffering: Boolean = false,
     val behindLiveMs: Long = 0L,
     val pausedAtMs: Long? = null,
+    val error: RadioError? = null,
 ) {
     // Delay behind the live broadcast, growing while paused because the stream keeps recording.
     fun delayAt(nowMs: Long): Long = behindLiveMs + (pausedAtMs?.let { nowMs - it } ?: 0L)
@@ -217,133 +220,71 @@ class RadioViewModel(
     }
 }
 
+// Standalone host kept for the launcher shortcut; the main app shows the same content as a tab.
 class RadioActivity : ComponentActivity() {
-    private val viewModel: RadioViewModel by viewModels()
-    private val controller = MutableStateFlow<MediaController?>(null)
-    private val nowPlaying = MutableStateFlow(RadioNowPlaying())
-    private val carTuner by lazy { CarTuner(this) }
-
-    private val listener =
-        object : Player.Listener {
-            override fun onEvents(
-                player: Player,
-                events: Player.Events,
-            ) {
-                publish(player)
-            }
-        }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             MetrolistTheme {
-                RadioScreen(
-                    viewModel = viewModel,
-                    nowPlaying = nowPlaying.collectAsState().value,
-                    onPlay = ::play,
-                    onToggle = ::toggle,
-                    onGoLive = ::goLive,
-                    onSkip = ::skip,
-                    onBack = ::finish,
-                    carTuner = carTuner,
-                )
+                RadioTab(onBack = ::finish)
             }
         }
     }
+}
 
-    override fun onStart() {
-        super.onStart()
-        carTuner.start()
-        lifecycleScopeLaunch {
-            val token = SessionToken(this, ComponentName(this, RadioService::class.java))
-            val built =
-                MediaController
-                    .Builder(this, token)
-                    .setListener(
-                        object : MediaController.Listener {
-                            override fun onExtrasChanged(
-                                controller: MediaController,
-                                extras: Bundle,
-                            ) {
-                                publish(controller)
-                            }
-                        },
-                    ).buildAsync()
-                    .await()
-            built.addListener(listener)
-            controller.value = built
-            publish(built)
+/** Radio content with its own playback connection; shown as a main tab and by [RadioActivity]. */
+@Composable
+fun RadioTab(
+    onBack: (() -> Unit)? = null,
+    bottomInset: Dp = 0.dp,
+) {
+    val context = LocalContext.current
+    val viewModel: RadioViewModel = viewModel()
+    val client = remember { RadioPlaybackClient(context) }
+    val carTuner = remember { CarTuner(context) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_START -> carTuner.start()
+                    Lifecycle.Event.ON_STOP -> carTuner.stop()
+                    else -> Unit
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) carTuner.start()
+        client.connect()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            carTuner.stop()
+            client.release()
         }
     }
-
-    override fun onStop() {
-        carTuner.stop()
-        // No UI updates while hidden: the service keeps playing without waking this screen.
-        controller.value?.run {
-            removeListener(listener)
-            release()
-        }
-        controller.value = null
-        super.onStop()
-    }
-
-    private fun lifecycleScopeLaunch(block: suspend () -> Unit) {
-        viewModel.viewModelScope.launch { runCatching { block() } }
-    }
-
-    private fun publish(player: Player) {
-        val station = viewModel.store.lastStation?.takeIf { it.id == player.currentMediaItem?.mediaId }
-        val title = player.mediaMetadata.title?.toString()
-        val extras = (player as? MediaController)?.sessionExtras
-        nowPlaying.value =
-            RadioNowPlaying(
-                station = station ?: viewModel.store.lastStation,
-                streamTitle = title?.takeIf { it.isNotBlank() && it != station?.displayName },
-                isPlaying = player.isPlaying,
-                isBuffering = player.playWhenReady && player.playbackState == Player.STATE_BUFFERING,
-                behindLiveMs = extras?.getLong(RadioService.EXTRA_BEHIND_LIVE_MS) ?: 0L,
-                pausedAtMs =
-                    extras
-                        ?.takeIf { it.containsKey(RadioService.EXTRA_PAUSED_AT_MS) }
-                        ?.getLong(RadioService.EXTRA_PAUSED_AT_MS),
-            )
-    }
-
-    private fun play(station: RadioStation) {
-        viewModel.store.lastStation = station
-        nowPlaying.update { RadioNowPlaying(station = station, isBuffering = true) }
-        val player = controller.value ?: return
-        player.setMediaItem(RadioService.requestItem(station))
-        player.prepare()
-        player.play()
-    }
-
-    private fun goLive() {
-        controller.value?.sendCustomCommand(SessionCommand(RadioService.COMMAND_GO_LIVE, Bundle.EMPTY), Bundle.EMPTY)
-    }
+    val nowPlaying by client.nowPlaying.collectAsState()
 
     // Steps through favorites when the station is one, otherwise through the list being browsed.
-    private fun skip(step: Int) {
-        val current = nowPlaying.value.station ?: return
+    fun skip(step: Int) {
+        val current = nowPlaying.station ?: return
         val favorites = viewModel.store.favorites.value
         val list = if (favorites.any { it.id == current.id }) favorites else viewModel.browse.value.stations
         if (list.isEmpty()) return
         val index = list.indexOfFirst { it.id == current.id }
-        val next = if (index < 0) list.first() else list[(index + step).mod(list.size)]
-        play(next)
+        client.play(if (index < 0) list.first() else list[(index + step).mod(list.size)])
     }
 
-    private fun toggle() {
-        val player = controller.value ?: return
-        if (player.playWhenReady) {
-            player.pause()
-        } else if (player.mediaItemCount == 0) {
-            viewModel.store.lastStation?.let(::play)
-        } else {
-            player.play()
-        }
-    }
+    RadioScreen(
+        viewModel = viewModel,
+        nowPlaying = nowPlaying,
+        onPlay = client::play,
+        onToggle = client::toggle,
+        onGoLive = client::goLive,
+        onSkip = ::skip,
+        onBack = onBack,
+        carTuner = carTuner,
+        bottomInset = bottomInset,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
@@ -355,8 +296,9 @@ private fun RadioScreen(
     onToggle: () -> Unit,
     onGoLive: () -> Unit,
     onSkip: (Int) -> Unit,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     carTuner: CarTuner,
+    bottomInset: Dp,
 ) {
     var showPlayer by rememberSaveable { mutableStateOf(false) }
     val browse by viewModel.browse.collectAsState()
@@ -377,14 +319,20 @@ private fun RadioScreen(
             TopAppBar(
                 title = { Text(stringResource(Res.string.radio_online)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(MetrolistIcons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(MetrolistIcons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        }
                     }
                 },
             )
         },
         bottomBar = {
-            if (nowPlaying.station != null) NowPlayingBar(nowPlaying, onToggle, onOpen = { showPlayer = true })
+            if (nowPlaying.station != null) {
+                Box(Modifier.padding(bottom = bottomInset)) {
+                    NowPlayingBar(nowPlaying, onToggle, onOpen = { showPlayer = true })
+                }
+            }
         },
     ) { padding ->
         if (showPlayer && nowPlaying.station != null) {
@@ -657,6 +605,8 @@ private fun NowPlayingBar(
                 Text(station.displayName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val detail =
                     when {
+                        nowPlaying.error == RadioError.SERVICE -> stringResource(Res.string.radio_service_error)
+                        nowPlaying.error == RadioError.STREAM -> stringResource(Res.string.radio_stream_error)
                         nowPlaying.isBuffering -> stringResource(Res.string.radio_connecting)
                         else -> nowPlaying.streamTitle ?: station.qualityLabel
                     }

@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.metrolist.shared.generated.resources.radio
 import com.metrolist.shared.generated.resources.Res
 import com.metrolist.shared.generated.resources.filter_library
 import com.metrolist.shared.generated.resources.home
@@ -76,6 +77,7 @@ val Screen.labelRes: StringResource?
             Screen.History -> Res.string.menu_history
             Screen.Statistics -> Res.string.statistics
             Screen.ListenTogether -> Res.string.listen_together
+            Screen.Radio -> Res.string.radio
             else -> null
         }
 
@@ -89,6 +91,7 @@ val Screen.icon: ImageVector?
             Screen.History -> MetrolistIcons.Outlined.History
             Screen.Statistics -> MetrolistIcons.Outlined.SsidChart
             Screen.ListenTogether -> MetrolistIcons.Outlined.Group
+            Screen.Radio -> MetrolistIcons.Outlined.Radio
             else -> null
         }
 
@@ -103,6 +106,7 @@ val Screen.iconFilled: ImageVector?
             Screen.History -> MetrolistIcons.Filled.History
             Screen.Statistics -> MetrolistIcons.Filled.SsidChart
             Screen.ListenTogether -> MetrolistIcons.Outlined.Group
+            Screen.Radio -> MetrolistIcons.Filled.Radio
             else -> null
         }
 
@@ -254,6 +258,7 @@ private fun floatingNavigationItems(): List<Screen> =
     buildList {
         if (Settings.shared.showBottomNavHome) add(Screen.Home)
         if (Settings.shared.showBottomNavLibrary) add(Screen.Library)
+        if (Settings.shared.showBottomNavRadio) add(Screen.Radio)
         if (Settings.shared.showBottomNavSearch) add(Screen.Search)
         if (isEmpty()) add(Screen.EasterEgg)
     }
@@ -263,6 +268,7 @@ private fun visibleNavigationItems(): List<Screen> =
         if (Settings.shared.showBottomNavHome) add(Screen.Home)
         if (Settings.shared.showBottomNavSearch) add(Screen.Search)
         if (Settings.shared.showBottomNavLibrary) add(Screen.Library)
+        if (Settings.shared.showBottomNavRadio) add(Screen.Radio)
         if (isEmpty()) add(Screen.EasterEgg)
     }
 

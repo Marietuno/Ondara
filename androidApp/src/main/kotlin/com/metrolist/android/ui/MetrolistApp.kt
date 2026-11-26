@@ -178,7 +178,7 @@ import com.metrolist.android.playback.SongDownloadManager
 import com.metrolist.android.playback.isRunnable
 import com.metrolist.android.playback.resolveIncomingPlaybackSong
 import com.metrolist.android.playback.voiceSearchRequest
-import com.metrolist.android.radio.RadioActivity
+import com.metrolist.android.radio.RadioTab
 import com.metrolist.android.spotifyimport.SpotifyImportShortcut
 import com.metrolist.android.ui.component.BottomSheetMenu
 import com.metrolist.android.ui.component.FloatingTopAppBar
@@ -278,7 +278,6 @@ import com.metrolist.shared.generated.resources.listen_together_guest_choice_tit
 import com.metrolist.shared.generated.resources.listen_together_guest_queue
 import com.metrolist.shared.generated.resources.listen_together_guest_solo
 import com.metrolist.shared.generated.resources.menu_history
-import com.metrolist.shared.generated.resources.radio_open
 import com.metrolist.shared.generated.resources.import_spotify_shortcut
 import com.metrolist.shared.generated.resources.menu_stop
 import com.metrolist.shared.generated.resources.mysterious_fourth_tab
@@ -490,7 +489,7 @@ fun MetrolistApp(
             onRejectPairing = AndroidDeviceConnect.manager::rejectPairing,
         )
         val initialStartRoute = remember { resolveAndPersistStartupScreen() }
-        val topLevelRoutes = remember { setOf(Screen.Home, Screen.Search, Screen.Library, Screen.EasterEgg) }
+        val topLevelRoutes = remember { setOf(Screen.Home, Screen.Search, Screen.Library, Screen.Radio, Screen.EasterEgg) }
         val navigationState =
             key(navigationSaveKey) {
                 rememberNavigationState(
@@ -1554,24 +1553,6 @@ fun MetrolistApp(
                                                         emptyList()
                                                     }
                                                 val topBarActions: @Composable RowScope.() -> Unit = {
-                                                    if (navigationState.topLevelRoute == Screen.Home) {
-                                                        TopBarIconButton(
-                                                            floating = useFloatingTopBar,
-                                                            onClick = { context.startActivity(Intent(context, RadioActivity::class.java)) },
-                                                            modifier =
-                                                                Modifier.tvFocusHighlight(
-                                                                    CircleShape,
-                                                                    scale = 1.08f,
-                                                                    bringIntoView = false,
-                                                                ),
-                                                        ) {
-                                                            Icon(
-                                                                MetrolistIcons.Outlined.Radio,
-                                                                contentDescription = stringResource(Res.string.radio_open),
-                                                                modifier = Modifier.size(24.dp),
-                                                            )
-                                                        }
-                                                    }
                                                     if (navigationState.topLevelRoute == Screen.Home && Screen.History !in railScreens) {
                                                         TopBarIconButton(
                                                             floating = useFloatingTopBar,
@@ -2514,7 +2495,7 @@ fun resolveAndPersistStartupScreen(): Screen {
 
 fun NavKey.isVisibleNavigationScreen(): Boolean =
     when (this) {
-        Screen.Home, Screen.Search, Screen.Library, Screen.EasterEgg -> true
+        Screen.Home, Screen.Search, Screen.Library, Screen.Radio, Screen.EasterEgg -> true
         else -> false
     }
 
@@ -2615,6 +2596,10 @@ fun getEntryProvider(
                     navigator.navigate(Screen.AutoPlaylist(type))
                 },
             )
+        }
+
+        entry<Screen.Radio>(metadata = navTabMetadata) {
+            RadioTab(bottomInset = LocalMiniPlayerBottomInset.current)
         }
 
         entry<Screen.Search>(metadata = navTabMetadata) {
