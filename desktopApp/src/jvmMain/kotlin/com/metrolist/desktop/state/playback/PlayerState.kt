@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import com.metrolist.desktop.deviceconnect.DesktopDeviceConnect
+import com.metrolist.desktop.radio.DesktopRadio
 import com.metrolist.desktop.history.HistoryEntry
 import com.metrolist.desktop.history.HistoryStat
 import com.metrolist.desktop.playback.PlaybackErrorReporter
@@ -3389,6 +3390,7 @@ object PlayerState {
         fromRemoteControl: Boolean = false,
         fromFailure: Boolean = false,
     ) {
+        if (DesktopRadio.active && !fromEOF && !fromFailure && !fromListenTogether) return DesktopRadio.next()
         if (!fromEOF && !fromFailure && !fromListenTogether) {
             _playbackReplacementGeneration.incrementAndGet()
             _explicitPlaybackGeneration.updateAndGet { it + 1 }
@@ -3571,6 +3573,7 @@ object PlayerState {
         fromListenTogether: Boolean = false,
         fromRemoteControl: Boolean = false,
     ) {
+        if (DesktopRadio.active && !fromListenTogether) return DesktopRadio.previous()
         val currentPos = currentMediaPositionMs()
         val isLive = isLiveStream
 
@@ -4237,6 +4240,7 @@ object PlayerState {
     ) = library.addToPlaylist(playlistId, song, onResult)
 
     fun togglePlay() {
+        if (DesktopRadio.active) return DesktopRadio.toggle()
         if (isListenTogetherGuest()) return
         if (deviceConnect.isActive) {
             setPlaybackPlaying(!syncSession.desiredPlaying)

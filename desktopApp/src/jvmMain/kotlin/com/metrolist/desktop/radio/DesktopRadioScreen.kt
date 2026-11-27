@@ -20,17 +20,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,27 +41,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.metrolist.desktop.state.app.DesktopNavigation
-import com.metrolist.desktop.state.playback.PlayerState
-import com.metrolist.shared.ui.navigation.Screen
 import com.metrolist.shared.generated.resources.Res
 import com.metrolist.shared.generated.resources.radio_add_favorite
 import com.metrolist.shared.generated.resources.radio_all_countries
-import com.metrolist.shared.generated.resources.radio_connecting
 import com.metrolist.shared.generated.resources.radio_country
 import com.metrolist.shared.generated.resources.radio_explore
 import com.metrolist.shared.generated.resources.radio_favorites
-import com.metrolist.shared.generated.resources.radio_live
 import com.metrolist.shared.generated.resources.radio_load_error
 import com.metrolist.shared.generated.resources.radio_load_more
 import com.metrolist.shared.generated.resources.radio_no_favorites
 import com.metrolist.shared.generated.resources.radio_no_stations
-import com.metrolist.shared.generated.resources.radio_online
-import com.metrolist.shared.generated.resources.radio_play
 import com.metrolist.shared.generated.resources.radio_remove_favorite
 import com.metrolist.shared.generated.resources.radio_retry
 import com.metrolist.shared.generated.resources.radio_search_hint
-import com.metrolist.shared.generated.resources.radio_stop
 import com.metrolist.shared.radio.RadioBrowser
 import com.metrolist.shared.radio.RadioCountry
 import com.metrolist.shared.radio.RadioQuery
@@ -137,10 +124,6 @@ fun DesktopRadioScreen() {
         updateQuery { it.copy(name = search) }
         if (search.isNotBlank()) tab = 1
     }
-    LaunchedEffect(PlayerState.isPlaying) {
-        if (PlayerState.isPlaying) DesktopRadio.onMusicPlaying()
-    }
-
     Column(Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = search,
@@ -183,7 +166,6 @@ fun DesktopRadioScreen() {
                 }
             }
         }
-        NowPlayingBar()
     }
 }
 
@@ -258,13 +240,16 @@ private fun StationList(
                 )
             }
         }
-        items(stations, key = { it.id }) { station -> StationRow(station) }
+        items(stations, key = { it.id }) { station -> StationRow(station, stations) }
         item { footer() }
     }
 }
 
 @Composable
-private fun StationRow(station: RadioStation) {
+private fun StationRow(
+    station: RadioStation,
+    list: List<RadioStation>,
+) {
     val isCurrent = DesktopRadio.station?.id == station.id
     val isFavorite = DesktopRadio.isFavorite(station.id)
     Row(
@@ -272,7 +257,7 @@ private fun StationRow(station: RadioStation) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable { DesktopRadio.play(station) }
+                .clickable { DesktopRadio.play(station, list) }
                 .background(if (isCurrent) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
@@ -318,73 +303,5 @@ private fun StationLogo(
     ) {
         Icon(MetrolistIcons.Outlined.Radio, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         if (station.favicon.isNotBlank()) AsyncImage(url = station.favicon, modifier = Modifier.fillMaxSize())
-    }
-}
-
-@Composable
-private fun NowPlayingBar() {
-    val station = DesktopRadio.station ?: return
-    val status = DesktopRadio.status
-    val active = status == DesktopRadioStatus.PLAYING || status == DesktopRadioStatus.CONNECTING
-    Surface(tonalElevation = 3.dp) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StationLogo(station, 52)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(station.displayName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val detail =
-                        when (status) {
-                            DesktopRadioStatus.CONNECTING -> stringResource(Res.string.radio_connecting)
-                            DesktopRadioStatus.PLAYING -> "● " + stringResource(Res.string.radio_live) + " · " + station.qualityLabel
-                            DesktopRadioStatus.ERROR -> stringResource(Res.string.radio_load_error)
-                            DesktopRadioStatus.IDLE -> station.qualityLabel
-                        }
-                    Text(
-                        detail,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                FilledIconButton(onClick = DesktopRadio::toggle, modifier = Modifier.size(52.dp)) {
-                    Icon(
-                        if (active) MetrolistIcons.Filled.Pause else MetrolistIcons.Filled.PlayArrow,
-                        contentDescription = stringResource(if (active) Res.string.radio_stop else Res.string.radio_play),
-                    )
-                }
-            }
-            Slider(value = DesktopRadio.volume, onValueChange = DesktopRadio::changeVolume, modifier = Modifier.fillMaxWidth())
-        }
-    }
-}
-
-// Compact control in the top bar so a playing station can be stopped or reopened from any screen.
-@Composable
-fun DesktopRadioTopBarControl() {
-    val station = DesktopRadio.station ?: return
-    val status = DesktopRadio.status
-    if (status != DesktopRadioStatus.PLAYING && status != DesktopRadioStatus.CONNECTING) return
-    Surface(
-        onClick = { DesktopNavigation.navigate(Screen.Radio) },
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        modifier = Modifier.padding(horizontal = 4.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 10.dp)) {
-            Icon(MetrolistIcons.Outlined.Radio, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(
-                station.displayName,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 160.dp),
-            )
-            IconButton(onClick = DesktopRadio::stop, shapes = IconButtonDefaults.shapes(), modifier = Modifier.size(32.dp)) {
-                Icon(MetrolistIcons.Filled.Pause, contentDescription = stringResource(Res.string.radio_stop), modifier = Modifier.size(16.dp))
-            }
-        }
     }
 }

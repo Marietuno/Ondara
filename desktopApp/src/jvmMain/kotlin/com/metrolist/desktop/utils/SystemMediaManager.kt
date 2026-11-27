@@ -6,6 +6,7 @@
 package com.metrolist.desktop.utils
 
 import androidx.compose.runtime.snapshotFlow
+import com.metrolist.desktop.radio.DesktopRadio
 import com.metrolist.desktop.state.playback.PlayerState
 import com.metrolist.innertubex.utils.YouTubeUrlParser
 import com.metrolist.shared.generated.resources.Res
@@ -128,11 +129,11 @@ object SystemMediaManager {
         val guest = PlayerState.isListenTogetherGuest()
         when (event) {
             MediaControlEvent.Play -> {
-                PlayerState.play()
+                if (DesktopRadio.active) DesktopRadio.resume() else PlayerState.play()
             }
 
             MediaControlEvent.Pause -> {
-                PlayerState.pause()
+                if (DesktopRadio.active) DesktopRadio.stop() else PlayerState.pause()
             }
 
             MediaControlEvent.Toggle -> {
@@ -140,7 +141,7 @@ object SystemMediaManager {
             }
 
             MediaControlEvent.Stop -> {
-                PlayerState.stop()
+                if (DesktopRadio.active) DesktopRadio.stop() else PlayerState.stop()
             }
 
             MediaControlEvent.Next -> {

@@ -86,6 +86,8 @@ import com.metrolist.desktop.ui.components.DeviceConnectSideSheet
 import com.metrolist.desktop.ui.components.LyricsDrawer
 import com.metrolist.desktop.ui.components.PersistentPlayerDrawer
 import com.metrolist.desktop.ui.components.StandardBottomPlayer
+import com.metrolist.desktop.radio.DesktopRadio
+import com.metrolist.desktop.radio.RadioBottomPlayer
 import com.metrolist.desktop.ui.components.TopBarWithPlayer
 import com.metrolist.desktop.ui.components.VideoMiniViewer
 import com.metrolist.desktop.ui.components.deviceConnectSideSheetWidth
@@ -455,7 +457,9 @@ private fun DesktopWindowScope.AdaptiveDesktopLayout(
             }
         }
 
-        if (!playerInTopBar && PlayerState.currentTrack != null) {
+        if (!playerInTopBar && DesktopRadio.active) {
+            RadioBottomPlayer(colorScheme)
+        } else if (!playerInTopBar && PlayerState.currentTrack != null) {
             DesktopPlayerVisibility(visible = !PlayerState.isExpanded) {
                 StandardBottomPlayer(colorScheme, toggleWindowFullscreen)
             }

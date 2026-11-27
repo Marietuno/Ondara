@@ -122,7 +122,8 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.metrolist.desktop.radio.DesktopRadioTopBarControl
+import com.metrolist.desktop.radio.DesktopRadio
+import com.metrolist.desktop.radio.RadioTopBarPlayer
 import com.metrolist.desktop.deviceconnect.DesktopDeviceConnect
 import com.metrolist.desktop.state.app.UiState
 import com.metrolist.desktop.state.auth.AuthState
@@ -254,7 +255,6 @@ fun DesktopWindowScope.CustomTitleBar(
                     colorScheme = colorScheme,
                 )
                 navItems()
-                DesktopRadioTopBarControl()
                 DevtoolsButton(colorScheme)
             }
 
@@ -376,7 +376,6 @@ fun DesktopWindowScope.TopBarWithPlayer(
                     colorScheme = colorScheme,
                 )
                 navItems()
-                DesktopRadioTopBarControl()
                 DevtoolsButton(colorScheme)
                 if (showSearchInTopBar) {
                     IconButton(
@@ -391,7 +390,9 @@ fun DesktopWindowScope.TopBarWithPlayer(
                 }
             }
 
-            if (currentTrack != null) {
+            if (DesktopRadio.active) {
+                RadioTopBarPlayer(colorScheme, Modifier.weight(2f))
+            } else if (currentTrack != null) {
                 Row(
                     modifier = Modifier.weight(2f),
                     verticalAlignment = Alignment.CenterVertically,
