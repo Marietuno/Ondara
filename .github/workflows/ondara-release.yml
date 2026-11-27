@@ -146,6 +146,11 @@ jobs:
           ./gradlew :desktopApp:assembleWindowsRelease             -Pmetrolist.debug=false             -Pmetrolist.verifyPackaging=false             -Pmetrolist.desktop.arch=x86_64             -PappVersion="$VERSION"             --no-daemon --no-configuration-cache
           test -f dist/Ondara-Desktop-Windows.zip
 
+      - name: Add JVM AOT cache
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/ondara-aot-cache.ps1 -Zip dist/Ondara-Desktop-Windows.zip
+
       - name: Attach to release
         shell: bash
         env:

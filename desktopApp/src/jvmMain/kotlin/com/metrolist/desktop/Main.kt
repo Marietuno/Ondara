@@ -136,6 +136,7 @@ import com.metrolist.desktop.utils.ComposeTrayManager
 import com.metrolist.desktop.utils.DesktopImageLoader
 import com.metrolist.desktop.utils.DesktopNativeCrashRecovery
 import com.metrolist.desktop.utils.DesktopSingleInstance
+import com.metrolist.desktop.window.AotTraining
 import com.metrolist.desktop.utils.DesktopStartup
 import com.metrolist.desktop.utils.DesktopUrlHandler
 import com.metrolist.desktop.utils.MatugenColors
@@ -1397,6 +1398,7 @@ private fun runDesktopApp(args: Array<String>) {
                     while (!frame.isShowing) delay(16L)
                     startup.windowShown.complete(Unit)
                     startup.firstFrame.await()
+                    if (AotTraining.enabled) launch { AotTraining.run() }
                     val renderApi = frame.findRenderApi()
                     softwareRendering = renderApi == GraphicsApi.SOFTWARE_FAST || renderApi == GraphicsApi.SOFTWARE_COMPAT
                     AppLogger.info(
