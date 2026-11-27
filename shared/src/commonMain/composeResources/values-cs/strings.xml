@@ -2605,9 +2605,6 @@
     <string name="credits_creator_section">Autor</string>
     <string name="devtools_render_backend">Vykreslovací backend</string>
     <string name="devtools_render_backend_description">Změny se projeví po restartu. Přednost mají předvolby z prostředí a JVM renderovacího API. Pokud se vybraný backend nepodaří inicializovat, Skiko může přepnout na záložní.</string>
-    <string name="support_prompt_title">Užíváte si aplikaci?</string>
-    <string name="support_prompt_message">Podpořte vývoj aplikace Ondara tím, že podpoříte její vývojáře. Klepnutím na někoho otevřete jeho stránku podpory.</string>
-    <string name="support_prompt_never_show">Už znovu nezobrazovat</string>
     <string name="app_icon_gradient">Barevný přechod</string>
     <string name="lyrics_active_by_real_timing">Zvýrazňovat text skladby podle časových značek</string>
     <string name="lyrics_plus_lighter">Aditivní zesvětlení</string>

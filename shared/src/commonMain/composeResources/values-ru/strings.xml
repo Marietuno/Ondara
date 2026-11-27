@@ -2687,9 +2687,6 @@
     <string name="search_episodes">Поиск выпусков</string>
     <string name="updates_nightly_builds">Ночные сборки</string>
     <string name="add_to_library">Добавить в библиотеку</string>
-    <string name="support_prompt_title">Нравится приложение?</string>
-    <string name="support_prompt_message">Помогите развитию Ondara, поддержав его разработчиков. Нажмите на любого из них, чтобы открыть страницу поддержки.</string>
-    <string name="support_prompt_never_show">Больше не показывать</string>
     <string name="updates_force_install">Всё равно установить</string>
     <string name="lastfm_session_expired_title">Сеанс Last.fm истёк</string>
     <string name="lastfm_session_expired">Войти в Last.fm снова</string>

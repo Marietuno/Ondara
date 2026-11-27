@@ -233,7 +233,6 @@ import com.metrolist.shared.ui.navigation.Navigator
 import com.metrolist.shared.ui.navigation.Screen
 import com.metrolist.shared.ui.navigation.rememberNavigationState
 import com.metrolist.shared.ui.playback.LocalPlaybackController
-import com.metrolist.shared.ui.screens.SupportPrompt
 import com.metrolist.shared.ui.settings.SettingsPageId
 import com.metrolist.shared.ui.utils.LocalMouseScrollFactors
 import com.metrolist.shared.ui.utils.desktopMouseScrollFactors
@@ -357,7 +356,6 @@ private fun DesktopWindowScope.AppContent(
             DesktopImageLoader.create(context)
         }
         UpdateArtworkTheme()
-        SupportPrompt()
         val matugenEnabled = Settings.shared.matugenTheme
         LaunchedEffect(matugenEnabled) {
             if (matugenEnabled) MatugenColors.watch()
@@ -950,8 +948,6 @@ private fun runDesktopApp(args: Array<String>) {
         environment = System.getenv("SKIKO_RENDER_API"),
         property = System.getProperty("skiko.renderApi"),
     )?.let { System.setProperty("skiko.renderApi", it) }
-    // A music player needs no discrete GPU: on laptops and desktops with both, render on the integrated one.
-    if (System.getProperty("skiko.gpu.priority") == null) System.setProperty("skiko.gpu.priority", "integrated")
     if (OsUtil.isMac) {
         System.setProperty("apple.awt.enableTemplateImages", "true")
         // Without this AppKit keeps the Aqua (light) title bar even in Dark Mode.
