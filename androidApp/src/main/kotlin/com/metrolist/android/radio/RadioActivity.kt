@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -80,6 +81,7 @@ import androidx.media3.common.Player
 import coil3.compose.AsyncImage
 import com.metrolist.android.ui.theme.MetrolistTheme
 import com.metrolist.shared.generated.resources.Res
+import com.metrolist.shared.generated.resources.collapse
 import com.metrolist.shared.generated.resources.radio_add_favorite
 import com.metrolist.shared.generated.resources.radio_behind_live
 import com.metrolist.shared.generated.resources.radio_go_live
@@ -242,6 +244,7 @@ fun RadioTab(
     val context = LocalContext.current
     val viewModel: RadioViewModel = viewModel()
     val client = remember { RadioPlaybackClient(context) }
+    val store = remember { RadioStore.get(context) }
     val carTuner = remember { CarTuner(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -259,29 +262,21 @@ fun RadioTab(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             carTuner.stop()
-            client.release()
         }
     }
-    val nowPlaying by client.nowPlaying.collectAsState()
-
-    // Steps through favorites when the station is one, otherwise through the list being browsed.
-    fun skip(step: Int) {
-        val current = nowPlaying.station ?: return
-        val favorites = viewModel.store.favorites.value
-        val list = if (favorites.any { it.id == current.id }) favorites else viewModel.browse.value.stations
-        if (list.isEmpty()) return
-        val index = list.indexOfFirst { it.id == current.id }
-        client.play(if (index < 0) list.first() else list[(index + step).mod(list.size)])
-    }
+    val nowPlaying by client.nowPlaying.collectAsState(RadioNowPlaying(station = store.lastStation))
+    val radioActive by client.isActive.collectAsState(false)
 
     RadioScreen(
         viewModel = viewModel,
         nowPlaying = nowPlaying,
         onPlay = client::play,
-        onToggle = client::toggle,
+        onToggle = { client.toggle(radioActive) },
         onGoLive = client::goLive,
-        onSkip = ::skip,
+        onSkip = client::skip,
         onBack = onBack,
+        // Inside the main app the app's own player shows the station; the standalone activity has none.
+        showPlayer = onBack != null,
         carTuner = carTuner,
         bottomInset = bottomInset,
     )
@@ -292,15 +287,16 @@ fun RadioTab(
 private fun RadioScreen(
     viewModel: RadioViewModel,
     nowPlaying: RadioNowPlaying,
-    onPlay: (RadioStation) -> Unit,
+    onPlay: (RadioStation, List<RadioStation>) -> Unit,
     onToggle: () -> Unit,
     onGoLive: () -> Unit,
     onSkip: (Int) -> Unit,
     onBack: (() -> Unit)?,
+    showPlayer: Boolean,
     carTuner: CarTuner,
     bottomInset: Dp,
 ) {
-    var showPlayer by rememberSaveable { mutableStateOf(false) }
+    var showPlayerSheet by rememberSaveable { mutableStateOf(false) }
     val browse by viewModel.browse.collectAsState()
     val tunerState by carTuner.state.collectAsState()
     val favorites by viewModel.store.favorites.collectAsState()
@@ -328,16 +324,16 @@ private fun RadioScreen(
             )
         },
         bottomBar = {
-            if (nowPlaying.station != null) {
+            if (showPlayer && nowPlaying.station != null) {
                 Box(Modifier.padding(bottom = bottomInset)) {
-                    NowPlayingBar(nowPlaying, onToggle, onOpen = { showPlayer = true })
+                    NowPlayingBar(nowPlaying, onToggle, onOpen = { showPlayerSheet = true })
                 }
             }
         },
     ) { padding ->
-        if (showPlayer && nowPlaying.station != null) {
+        if (showPlayer && showPlayerSheet && nowPlaying.station != null) {
             ModalBottomSheet(
-                onDismissRequest = { showPlayer = false },
+                onDismissRequest = { showPlayerSheet = false },
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             ) {
                 FullPlayer(
@@ -377,7 +373,7 @@ private fun RadioScreen(
                     favorites = favorites,
                     nowPlaying = nowPlaying,
                     emptyText = stringResource(Res.string.radio_no_favorites),
-                    onPlay = onPlay,
+                    onPlay = { onPlay(it, favorites) },
                     onFavorite = viewModel.store::toggleFavorite,
                 )
             } else {
@@ -392,7 +388,7 @@ private fun RadioScreen(
                     favorites = favorites,
                     nowPlaying = nowPlaying,
                     emptyText = if (browse.loading) null else stringResource(Res.string.radio_no_stations),
-                    onPlay = onPlay,
+                    onPlay = { onPlay(it, browse.stations) },
                     onFavorite = viewModel.store::toggleFavorite,
                     footer = {
                         when {
@@ -811,5 +807,39 @@ private fun FullPlayer(
             }
             Spacer(Modifier.size(48.dp))
         }
+    }
+}
+
+/** The app player's expanded view while an online radio station owns the player. */
+@Composable
+fun RadioPlayerScreen(
+    nowPlaying: RadioNowPlaying,
+    onCollapse: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val client = remember { RadioPlaybackClient(context) }
+    val store = remember { RadioStore.get(context) }
+    val favorites by store.favorites.collectAsState()
+    val station = nowPlaying.station ?: return
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).systemBarsPadding(),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(8.dp)) {
+            IconButton(onClick = onCollapse) {
+                Icon(MetrolistIcons.Outlined.KeyboardArrowDown, contentDescription = stringResource(Res.string.collapse))
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        FullPlayer(
+            nowPlaying = nowPlaying,
+            isFavorite = favorites.any { it.id == station.id },
+            onToggle = { client.toggle(active = true) },
+            onGoLive = client::goLive,
+            onSkip = client::skip,
+            onFavorite = { store.toggleFavorite(station) },
+        )
+        Spacer(Modifier.weight(1f))
     }
 }

@@ -7,7 +7,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaConstants
 import com.metrolist.android.R
-import com.metrolist.android.radio.RadioService.Companion.toMediaItem
+import com.metrolist.android.radio.toMediaItem
 import com.metrolist.android.radio.RadioStore
 import com.metrolist.shared.radio.RadioBrowser
 import com.metrolist.shared.radio.RadioQuery

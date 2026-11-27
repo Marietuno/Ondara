@@ -131,6 +131,15 @@ import com.metrolist.shared.generated.resources.unknown
 import com.metrolist.shared.generated.resources.unmute
 import com.metrolist.shared.listentogether.ListenTogetherRoomRole
 import com.metrolist.shared.model.SongItem
+import com.metrolist.shared.generated.resources.radio_stream_error
+import com.metrolist.shared.generated.resources.radio_live
+import com.metrolist.shared.generated.resources.radio_connecting
+import com.metrolist.shared.model.ArtistTiny
+import com.metrolist.android.radio.RadioStore
+import com.metrolist.android.radio.RadioNowPlaying
+import com.metrolist.android.radio.RadioError
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import com.metrolist.shared.model.isLive
 import com.metrolist.shared.model.previewThumbnailUrl
 import com.metrolist.shared.playback.interpolatePlaybackPosition
@@ -190,6 +199,11 @@ fun MiniPlayer(
     cardFocusRequester: FocusRequester? = null,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
+    val radio by playerConnection.radioNowPlaying.collectAsState(initial = null)
+    radio?.takeIf { it.station != null }?.let { nowPlaying ->
+        RadioMiniPlayer(nowPlaying, useDesktopLayout, modifier, onExpand, onDpadExpand, bottomSheetState, cardFocusRequester)
+        return
+    }
 
     val currentSong by playerConnection.currentSong.collectAsState(initial = null)
     val isPlaying by playerConnection.isPlaying.collectAsState(initial = false)
@@ -973,9 +987,9 @@ private fun MiniPlayerContent(
             },
             actions = {
                 MiniPlayerActions(
-                    isLiked = SongLikeState.isLiked(currentSong.id),
+                    isLiked = LocalMiniPlayerStationFavorite.current ?: SongLikeState.isLiked(currentSong.id),
                     isArtistSubscribed = isArtistSubscribed,
-                    onAddToPlaylist = onAddToPlaylist,
+                    onAddToPlaylist = onAddToPlaylist.takeIf { LocalMiniPlayerStationFavorite.current == null },
                     onLike = { onLike(currentSong.id) },
                     onSubscribeToggle = onSubscribeToggle.takeIf { artistId != null },
                     borderColor = buttonBorderColor,
@@ -1066,7 +1080,7 @@ private fun ModernMiniPlayerContent(
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
 
-    val isLiked = SongLikeState.isLiked(currentSong.id)
+    val isLiked = LocalMiniPlayerStationFavorite.current ?: SongLikeState.isLiked(currentSong.id)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1133,7 +1147,7 @@ private fun ModernMiniPlayerContent(
         MiniPlayerActions(
             isLiked = isLiked,
             isArtistSubscribed = isArtistSubscribed,
-            onAddToPlaylist = onAddToPlaylist,
+            onAddToPlaylist = onAddToPlaylist.takeIf { LocalMiniPlayerStationFavorite.current == null },
             onLike = { onLike(currentSong.id) },
             onSubscribeToggle = onSubscribeToggle.takeIf { artistId != null },
             borderColor = buttonBorderColor,
@@ -1408,6 +1422,147 @@ private fun PlayButtonWithProgress(
                     modifier = Modifier.size(20.dp),
                 )
             }
+        }
+    }
+}
+
+// Set while an online radio station fills the mini player: the heart is the station's favorite, with no playlist button.
+internal val LocalMiniPlayerStationFavorite = compositionLocalOf<Boolean?> { null }
+
+/** The same mini player, showing the online radio station that owns the player. */
+@UnstableApi
+@Composable
+private fun RadioMiniPlayer(
+    nowPlaying: RadioNowPlaying,
+    useDesktopLayout: Boolean,
+    modifier: Modifier,
+    onExpand: () -> Unit,
+    onDpadExpand: () -> Unit,
+    bottomSheetState: BottomSheetState?,
+    cardFocusRequester: FocusRequester?,
+) {
+    val playerConnection = LocalPlayerConnection.current ?: return
+    val station = nowPlaying.station ?: return
+    val context = LocalContext.current
+    val store = remember { RadioStore.get(context) }
+    val favorites by store.favorites.collectAsState()
+    val isFavorite = favorites.any { it.id == station.id }
+    val hapticManager = rememberMetrolistHaptics()
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val active = bottomSheetState?.isCollapsed != false && lifecycleState == Lifecycle.State.RESUMED
+    val isExpressive = Settings.shared.miniPlayerType == MiniPlayerType.EXPRESSIVE && !useDesktopLayout
+    val isModern = Settings.shared.miniPlayerType == MiniPlayerType.MODERN && !useDesktopLayout
+    val subtitle =
+        when {
+            nowPlaying.error == RadioError.STREAM -> stringResource(Res.string.radio_stream_error)
+            nowPlaying.isBuffering -> stringResource(Res.string.radio_connecting)
+            else -> nowPlaying.streamTitle ?: listOf("● " + stringResource(Res.string.radio_live), station.qualityLabel).filter { it.isNotBlank() }.joinToString(" · ")
+        }
+    val song =
+        remember(station, subtitle) {
+            SongItem(
+                id = "radio:${station.id}",
+                title = station.displayName,
+                thumbnail = station.favicon.ifBlank { null },
+                artists = listOf(ArtistTiny(id = null, name = subtitle)),
+                album = null,
+            )
+        }
+    val showPause = nowPlaying.isPlaying || nowPlaying.isBuffering
+    val toggleFavorite = {
+        hapticManager.toggle(!isFavorite)
+        store.toggleFavorite(station)
+    }
+    val arcAlpha = animateFloatAsState(targetValue = if (nowPlaying.isPlaying) 1f else 0.5f, label = "radioArcAlpha")
+    val dragOffset = remember { mutableStateOf(Offset.Zero) }
+    Box(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(
+                    when {
+                        useDesktopLayout -> DesktopMiniPlayerHeight
+                        isExpressive -> ExpressiveMiniPlayerHeight
+                        isModern -> modernMiniPlayerHeight(LocalDensity.current)
+                        else -> MiniPlayerHeight
+                    },
+                ).then(
+                    if (isModern || isExpressive) {
+                        Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(horizontal = ModernMiniPlayerHorizontalPadding)
+                    } else {
+                        Modifier
+                    },
+                ),
+    ) {
+        if (isExpressive) {
+            ExpressiveMiniPlayer(
+                song = song,
+                isPlaying = showPause,
+                isLoading = nowPlaying.isBuffering && active,
+                active = active,
+                onTogglePlay = {
+                    hapticManager.perform(HapticEvent.PRESS)
+                    playerConnection.toggleRadio()
+                },
+                onSkipNext = { playerConnection.skipRadio(1) },
+                onSkipPrevious = { playerConnection.skipRadio(-1) },
+                onExpand = onExpand,
+                canSkipNext = true,
+                canSkipPrevious = true,
+                playbackEnabled = true,
+                swipeThresholdPx = with(LocalDensity.current) { 100.dp.toPx() },
+                isVisible = true,
+                modifier = Modifier.then(if (cardFocusRequester != null) Modifier.focusRequester(cardFocusRequester) else Modifier),
+                swipeEnabled = false,
+                progress = { 1f },
+                progressAvailable = false,
+                isLiked = isFavorite,
+                isArtistSubscribed = false,
+                onLike = toggleFavorite,
+                onSubscribeToggle = null,
+                onAddToPlaylist = null,
+                onDpadExpand = onDpadExpand,
+            )
+            return@Box
+        }
+        CompositionLocalProvider(LocalMiniPlayerStationFavorite provides isFavorite) {
+            MiniPlayerCard(
+                useDesktopLayout = useDesktopLayout,
+                currentSong = song,
+                isLive = true,
+                marqueeModifier = rememberTrackMarquee(song.id, active, 10_000L),
+                active = active,
+                isPlaying = showPause,
+                isPlaybackLoading = nowPlaying.isBuffering && active,
+                progress = { 1f },
+                bufferedProgress = { 1f },
+                arcAlpha = arcAlpha,
+                dragOffset = dragOffset,
+                onExpand = {
+                    hapticManager.perform(HapticEvent.PRESS)
+                    onExpand()
+                },
+                onDpadExpand = onDpadExpand,
+                canSkipPrevious = true,
+                onSkipPrevious = { playerConnection.skipRadio(-1) },
+                onTogglePlayPause = {
+                    hapticManager.toggle(!showPause)
+                    playerConnection.toggleRadio()
+                },
+                canSkipNext = true,
+                onSkipNext = {
+                    hapticManager.perform(HapticEvent.PRESS)
+                    playerConnection.skipRadio(1)
+                },
+                isListenTogetherGuest = false,
+                isMuted = false,
+                onLike = { toggleFavorite() },
+                videoPlayer = null,
+                showVideo = false,
+                focusRequester = cardFocusRequester,
+            )
         }
     }
 }

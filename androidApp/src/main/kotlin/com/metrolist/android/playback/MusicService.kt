@@ -48,8 +48,11 @@ import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.metrolist.android.radio.LiveRadioPlayer
-import com.metrolist.android.radio.RadioService
+import com.metrolist.android.radio.RadioError
+import com.metrolist.android.radio.RadioMedia
+import com.metrolist.android.radio.RadioNowPlaying
 import com.metrolist.android.radio.RadioStore
+import com.metrolist.android.radio.toMediaItem
 import com.metrolist.shared.radio.RadioBrowser
 import com.metrolist.shared.radio.RadioStation
 import com.metrolist.android.App
@@ -307,9 +310,11 @@ class MusicService :
         private set
     private var mediaSession: MediaLibrarySession? = null
 
-    // Online radio picked in Android Auto; while set, it is the session's player instead of the music player.
+    // Online radio (picked in the app or in Android Auto); while set, it is the session's player instead of the music player.
     private var automotiveRadio: LiveRadioPlayer? = null
     private val automotiveRadioRequested = MutableStateFlow(false)
+    private val radioNowPlayingState = MutableStateFlow<RadioNowPlaying?>(null)
+    val radioNowPlaying: StateFlow<RadioNowPlaying?> = radioNowPlayingState.asStateFlow()
     private var startRadioLabel = ""
     private val playbackCommandEvents = MutableStateFlow(0L)
     internal val playbackCommands = playbackCommandEvents.asStateFlow()
@@ -1193,8 +1198,8 @@ class MusicService :
             ?.currentMediaItem
             ?.requestMetadata
             ?.extras
-            ?.getString(RadioService.EXTRA_STATION)
-            ?.let(RadioService::decodeStation)
+            ?.getString(RadioMedia.EXTRA_STATION)
+            ?.let(RadioMedia::decodeStation)
 
     private fun setRadioMediaButtons() {
         val radio = automotiveRadio ?: return
@@ -1214,7 +1219,7 @@ class MusicService :
                     .Builder(CommandButton.ICON_FAST_FORWARD)
                     .setCustomIconResId(R.drawable.ic_notification_go_live)
                     .setDisplayName(getString(R.string.radio_go_live))
-                    .setSessionCommand(SessionCommand(RadioService.COMMAND_GO_LIVE, Bundle.EMPTY))
+                    .setSessionCommand(SessionCommand(RadioMedia.COMMAND_GO_LIVE, Bundle.EMPTY))
                     .setSlots(CommandButton.SLOT_OVERFLOW)
                     .setEnabled(radio.isBehindLive)
                     .build(),
@@ -1225,9 +1230,21 @@ class MusicService :
     /** Makes the online radio the session's player so Android Auto shows and controls it. */
     private fun startAutomotiveRadio(): LiveRadioPlayer {
         val radio =
-            automotiveRadio ?: LiveRadioPlayer(this) { if (automotiveRadio != null) setRadioMediaButtons() }.also { radio ->
+            automotiveRadio ?: LiveRadioPlayer(this) {
+                if (automotiveRadio != null) {
+                    setRadioMediaButtons()
+                    publishRadioState()
+                }
+            }.also { radio ->
                 radio.addListener(
                     object : Player.Listener {
+                        override fun onEvents(
+                            player: Player,
+                            events: Player.Events,
+                        ) {
+                            publishRadioState()
+                        }
+
                         override fun onPlayWhenReadyChanged(
                             playWhenReady: Boolean,
                             reason: Int,
@@ -1249,7 +1266,6 @@ class MusicService :
                 )
                 automotiveRadio = radio
             }
-        RadioService.pauseRunning()
         media3Player?.takeIf { it.playWhenReady }?.pause()
         if (mediaSession?.player !== radio) mediaSession?.setPlayer(radio)
         setRadioMediaButtons()
@@ -1260,10 +1276,65 @@ class MusicService :
         val radio = automotiveRadio ?: return
         automotiveRadio = null
         automotiveRadioRequested.value = false
+        radioNowPlayingState.value = null
         media3Player?.let { music -> if (mediaSession?.player !== music) mediaSession?.setPlayer(music) }
         radio.release()
         setMusicMediaButtons()
     }
+
+    private fun publishRadioState() {
+        val radio = automotiveRadio ?: return
+        val station = currentAutomotiveStation() ?: return
+        val title = radio.mediaMetadata.title?.toString()
+        radioNowPlayingState.value =
+            RadioNowPlaying(
+                station = station,
+                streamTitle = title?.takeIf { it.isNotBlank() && it != station.displayName },
+                isPlaying = radio.isPlaying,
+                isBuffering = radio.playWhenReady && radio.playbackState == Player.STATE_BUFFERING,
+                behindLiveMs = radio.behindLiveMs,
+                pausedAtMs = radio.pausedAtMs,
+                error = RadioError.STREAM.takeIf { radio.playerError != null && !radio.isPlaying },
+            )
+    }
+
+    /** Plays [stations] from [index] through the music session; previous/next move through the same list. */
+    fun playRadio(
+        stations: List<RadioStation>,
+        index: Int,
+    ) {
+        if (stations.isEmpty()) return
+        automotivePlaybackRequestGate.cancelPendingRequests()
+        val radio = startAutomotiveRadio()
+        radio.setMediaItems(stations.map { it.toMediaItem() }, index.coerceIn(stations.indices), C.TIME_UNSET)
+        radio.prepare()
+        radio.play()
+        publishRadioState()
+    }
+
+    fun toggleRadio() {
+        val radio = automotiveRadio ?: return
+        if (radio.playWhenReady) {
+            radio.pause()
+        } else {
+            if (radio.playbackState == Player.STATE_IDLE) radio.prepare()
+            radio.play()
+        }
+    }
+
+    fun skipRadio(step: Int) {
+        val radio = automotiveRadio ?: return
+        val count = radio.mediaItemCount
+        if (count < 2) return
+        radio.seekToDefaultPosition(Math.floorMod(radio.currentMediaItemIndex + step, count))
+        radio.play()
+    }
+
+    fun goLiveRadio() {
+        automotiveRadio?.goLive()
+    }
+
+    fun stopRadio() = stopAutomotiveRadio()
 
     private fun observePlaybackEvents() {
         serviceScope.launch {
@@ -3475,7 +3546,7 @@ class MusicService :
                     .add(MediaSessionConstants.CommandToggleStartRadio)
                     .add(MediaSessionConstants.CommandAddToQueue)
                     .add(MediaSessionConstants.CommandAddToTargetPlaylist)
-                    .add(SessionCommand(RadioService.COMMAND_GO_LIVE, Bundle.EMPTY))
+                    .add(SessionCommand(RadioMedia.COMMAND_GO_LIVE, Bundle.EMPTY))
                     .build()
             MediaArtworkProvider.allowedPackages += controller.packageName
             return MediaSession.ConnectionResult.accept(
@@ -3559,7 +3630,7 @@ class MusicService :
             val radio = automotiveRadio
             if (radio != null) {
                 when (customCommand.customAction) {
-                    RadioService.COMMAND_GO_LIVE -> {
+                    RadioMedia.COMMAND_GO_LIVE -> {
                         radio.goLive()
                     }
 

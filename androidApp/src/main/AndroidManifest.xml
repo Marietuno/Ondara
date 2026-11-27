@@ -490,16 +490,6 @@
         </service>
 
         <service
-            android:name="com.metrolist.android.radio.RadioService"
-            android:exported="true"
-            android:foregroundServiceType="mediaPlayback"
-            tools:ignore="ExportedService">
-            <intent-filter>
-                <action android:name="androidx.media3.session.MediaSessionService" />
-            </intent-filter>
-        </service>
-
-        <service
             android:name="com.metrolist.android.playback.MusicService"
             android:enabled="true"
             android:exported="true"

@@ -178,6 +178,7 @@ import com.metrolist.android.playback.SongDownloadManager
 import com.metrolist.android.playback.isRunnable
 import com.metrolist.android.playback.resolveIncomingPlaybackSong
 import com.metrolist.android.playback.voiceSearchRequest
+import com.metrolist.android.radio.RadioPlayerScreen
 import com.metrolist.android.radio.RadioTab
 import com.metrolist.android.spotifyimport.SpotifyImportShortcut
 import com.metrolist.android.ui.component.BottomSheetMenu
@@ -767,7 +768,10 @@ fun MetrolistApp(
 
         val currentSong by playerConnection.currentSong.collectAsState(initial = null)
         val isPlaying by playerConnection.isPlaying.collectAsState()
-        val hasMedia = currentSong != null
+        // An online radio station owns the same player (mini player and expanded view) while it plays.
+        val radioNowPlaying by playerConnection.radioNowPlaying.collectAsState(initial = null)
+        val radioActive = radioNowPlaying?.station != null
+        val hasMedia = currentSong != null || radioActive
         LaunchedEffect(Unit) {
             PlaybackSnackbarEvents.messages.collect { message ->
                 snackbarHostState.showSnackbar(message)
@@ -1374,7 +1378,7 @@ fun MetrolistApp(
                         }
                     }
 
-                    LaunchedEffect(currentSong?.id) {
+                    LaunchedEffect(currentSong?.id, radioActive) {
                         when {
                             !hasMedia -> {
                                 playerBottomSheetState.dismiss()
@@ -1908,7 +1912,7 @@ fun MetrolistApp(
                                 }
                             },
                             prepareDismissal = {
-                                val stopDismissedRequest = playerConnection.prepareDismissal()
+                                val stopDismissedRequest = if (radioActive) playerConnection::stopRadio else playerConnection.prepareDismissal()
                                 val onComplete: () -> Unit = {
                                     hapticManager.perform(HapticEvent.CONFIRM)
                                     stopDismissedRequest()
@@ -1966,7 +1970,10 @@ fun MetrolistApp(
                             },
                         ) {
                             val playerLifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
-                            PlayerScreen(
+                            val radio = radioNowPlaying
+                            if (radio?.station != null) {
+                                RadioPlayerScreen(nowPlaying = radio, onCollapse = { playerBottomSheetState.collapseSoft() })
+                            } else PlayerScreen(
                                 isScreenVisible = playerLifecycleState.isAtLeast(Lifecycle.State.STARTED),
                                 viewModel = playerViewModel,
                                 bottomSheetState = playerBottomSheetState,

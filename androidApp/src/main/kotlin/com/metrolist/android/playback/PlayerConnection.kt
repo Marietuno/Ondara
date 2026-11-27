@@ -14,6 +14,8 @@ import com.metrolist.android.deviceconnect.AndroidDeviceConnect
 import com.metrolist.android.deviceconnect.toDeviceConnectRepeatMode
 import com.metrolist.android.listentogether.AndroidListenTogetherManager
 import com.metrolist.android.models.decodePersistPlayerState
+import com.metrolist.android.radio.RadioNowPlaying
+import com.metrolist.shared.radio.RadioStation
 import com.metrolist.shared.api.PlaylistPage
 import com.metrolist.shared.cast.CastDevice
 import com.metrolist.shared.cast.CastState
@@ -198,6 +200,36 @@ class PlayerConnection(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val playbackCommands: Flow<Long> get() = _isConnected.flatMapLatest { musicService?.playbackCommands ?: flowOf(0L) }
+
+    // Online radio plays through the same service and session as music; null while music owns the player.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val radioNowPlaying: Flow<RadioNowPlaying?> by lazy { _isConnected.flatMapLatest { musicService?.radioNowPlaying ?: flowOf(null) } }
+
+    fun playRadio(
+        stations: List<RadioStation>,
+        index: Int,
+    ) {
+        if (deferUntilConnected { playRadio(stations, index) }) return
+        musicService?.playRadio(stations, index)
+    }
+
+    fun toggleRadio() {
+        if (deferUntilConnected { toggleRadio() }) return
+        musicService?.toggleRadio()
+    }
+
+    fun skipRadio(step: Int) {
+        if (deferUntilConnected { skipRadio(step) }) return
+        musicService?.skipRadio(step)
+    }
+
+    fun goLiveRadio() {
+        musicService?.goLiveRadio()
+    }
+
+    fun stopRadio() {
+        musicService?.stopRadio()
+    }
 
     private var queueUndo: QueueUndo? = null
     private var playlistRequestGeneration = 0L
