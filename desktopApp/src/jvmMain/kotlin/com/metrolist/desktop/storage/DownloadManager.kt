@@ -147,12 +147,7 @@ data class DownloadedFile(
         )
 
     fun toSongItem(): SongItem {
-        val localThumb =
-            thumbnailFilePath?.takeIf { DownloadManager.safePersistedFile(it)?.isFile == true }?.let {
-                File(it)
-                    .toURI()
-                    .toString()
-            }
+        val localThumb = thumbnailFilePath?.let(DownloadManager::localThumbnailUri)
         return SongItem(
             id = songId,
             title = title,
@@ -371,6 +366,14 @@ object DownloadManager {
     }
 
     fun safePersistedFile(path: String): File? = directories.safeFile(path, getDownloadDir())
+
+    // Validating a thumbnail path costs several file-system calls; library and menus map every download often.
+    private val localThumbnailUris = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    fun localThumbnailUri(path: String): String? =
+        localThumbnailUris[path] ?: safePersistedFile(path)?.takeIf { it.isFile }?.let { File(path).toURI().toString() }?.also {
+            localThumbnailUris[path] = it
+        }
 
     private suspend fun cacheDownloadLyrics(song: SongItem) {
         try {

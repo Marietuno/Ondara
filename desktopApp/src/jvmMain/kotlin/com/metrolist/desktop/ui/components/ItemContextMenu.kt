@@ -504,11 +504,19 @@ fun PlaylistContextMenu(
     var showExportDialog by remember(playlist.id) { mutableStateOf(false) }
     val removal = remember(playlist.id) { DownloadRemovalState() }
     val isDownloadedCollection = playlist.id == "auto:downloaded"
-    val actionSongs =
-        if (isDownloadedCollection && songs.isEmpty()) LibraryState.downloadedFiles.map { it.toSongItem() } else songs
+    // Mapping every download checks its files on disk; this menu is composed for each library card even while
+    // closed, so build the list only when it opens, and once per change of the downloads.
+    val downloadedFiles = LibraryState.downloadedFiles
+    val downloadedSongs =
+        if (isDownloadedCollection && expanded && (songs.isEmpty() || downloadSongs.isEmpty())) {
+            remember(downloadedFiles) { downloadedFiles.map { it.toSongItem() } }
+        } else {
+            emptyList()
+        }
+    val actionSongs = if (isDownloadedCollection && songs.isEmpty()) downloadedSongs else songs
     val downloadActionSongs =
         if (isDownloadedCollection && downloadSongs.isEmpty()) {
-            LibraryState.downloadedFiles.map { it.toSongItem() }
+            downloadedSongs
         } else {
             downloadSongs.ifEmpty { actionSongs }
         }

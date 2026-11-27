@@ -949,6 +949,8 @@ private fun runDesktopApp(args: Array<String>) {
         environment = System.getenv("SKIKO_RENDER_API"),
         property = System.getProperty("skiko.renderApi"),
     )?.let { System.setProperty("skiko.renderApi", it) }
+    // A music player needs no discrete GPU: on laptops and desktops with both, render on the integrated one.
+    if (System.getProperty("skiko.gpu.priority") == null) System.setProperty("skiko.gpu.priority", "integrated")
     if (OsUtil.isMac) {
         System.setProperty("apple.awt.enableTemplateImages", "true")
         // Without this AppKit keeps the Aqua (light) title bar even in Dark Mode.
